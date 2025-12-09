@@ -1,134 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>3D Scene test</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: radial-gradient(circle at 50% 0%, #123363 0%, #03040a 55%, #020308 100%);
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D Scene</title>
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: radial-gradient(circle at center, #0b1e3b, #000);
     }
-    #scene-container {
-      width: 100vw;
-      height: 100vh;
-    }
-  </style>
+    canvas { display: block; }
+</style>
 </head>
 <body>
-  <div id="scene-container"></div>
 
-  <!-- THREE global sürüm -->
-  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<!-- THREE core -->
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 
-  <!-- ES MODULE DEĞİL: eski examples/js yolu -->
-  <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- OrbitControls (legacy examples/js) -->
+<script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
 
-  <script>
-    // TEMEL SAHNE
-    const container = document.getElementById('scene-container');
+<!-- GLTFLoader (legacy examples/js) — DİKKAT: jsm değil -->
+<script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
 
-    const scene = new THREE.Scene();
+<script>
+// --- Debug -------------------------
+console.log("THREE:", THREE);
+console.log("GLTFLoader class =", THREE.GLTFLoader);
+// -----------------------------------
 
-    const camera = new THREE.PerspectiveCamera(
-      35,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100
-    );
-    camera.position.set(0, 1.2, 6);
+/* === SCENE === */
+const scene = new THREE.Scene();
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
+/* === CAMERA === */
+const camera = new THREE.PerspectiveCamera(
+    50,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+);
+camera.position.set(0, 1, 5);
 
-    // IŞIKLAR
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x080820, 1.2);
-    scene.add(hemi);
+/* === RENDERER === */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-    dir.position.set(3, 5, 4);
-    scene.add(dir);
+/* === LIGHTS === */
+const light1 = new THREE.DirectionalLight(0xffffff, 2);
+light1.position.set(5, 5, 5);
+scene.add(light1);
 
-    // KONTROLLER
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.enablePan = false;
-    controls.maxPolarAngle = Math.PI * 0.55;
+const light2 = new THREE.AmbientLight(0xffffff, 1);
+scene.add(light2);
 
-    // KÜÇÜK TEST KÜP (görünsün diye)
-    const cubeGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-    const cubeMat = new THREE.MeshStandardMaterial({ color: 0xff4444 });
-    const cube = new THREE.Mesh(cubeGeo, cubeMat);
-    cube.position.set(-1, 0.3, 0);
-    scene.add(cube);
+/* === CONTROLS === */
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
 
-    // GLTF LOADER — DİKKAT: new THREE.GLTFLoader()
-    const loader = new THREE.GLTFLoader();
+/* === LOADER === */
+const loader = new THREE.GLTFLoader();
+console.log("Loader instance:", loader);
 
-    // 1) christmas_ball.glb
-    loader.load(
-      'christmas_ball.glb',      // dosya adı repo kökünde
-      function (gltf) {
+/* === MODEL 1 === */
+loader.load(
+    "christmas_ball.glb",
+    (gltf) => {
         const model = gltf.scene;
-        model.position.set(0, 0, 0);
-        model.scale.set(1.2, 1.2, 1.2);
+        model.position.set(-1, 0, 0);
+        model.scale.set(1.3, 1.3, 1.3);
         scene.add(model);
-
-        // hafif dönme animasyonu için referans
-        model.userData.spin = true;
-      },
-      undefined,
-      function (error) {
-        console.error('Error loading christmas_ball.glb:', error);
-      }
-    );
-
-    // 2) christmas_tree_ball.glb
-    loader.load(
-      'christmas_tree_ball.glb',
-      function (gltf) {
-        const model = gltf.scene;
-        model.position.set(1.8, 0, 0);
-        model.scale.set(1.2, 1.2, 1.2);
-        scene.add(model);
-
-        model.userData.spin = true;
-      },
-      undefined,
-      function (error) {
-        console.error('Error loading christmas_tree_ball.glb:', error);
-      }
-    );
-
-    // ANİMASYON
-    function animate() {
-      requestAnimationFrame(animate);
-
-      // sahnedeki modelleri yavaşça döndür
-      scene.traverse(obj => {
-        if (obj.userData.spin) {
-          obj.rotation.y += 0.005;
-        }
-      });
-
-      cube.rotation.y += 0.01;
-
-      controls.update();
-      renderer.render(scene, camera);
+        console.log("Ball loaded:", model);
+    },
+    undefined,
+    (err) => {
+        console.error("Ball load error:", err);
     }
-    animate();
+);
 
-    // RESİZE
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
+/* === MODEL 2 === */
+loader.load(
+    "christmas_tree_ball.glb",
+    (gltf) => {
+        const model = gltf.scene;
+        model.position.set(1.2, 0, 0);
+        model.scale.set(1.3, 1.3, 1.3);
+        scene.add(model);
+        console.log("Tree loaded:", model);
+    },
+    undefined,
+    (err) => {
+        console.error("Tree load error:", err);
+    }
+);
+
+/* === ANIMATE === */
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+
+/* === WINDOW RESIZE === */
+window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
 </body>
 </html>
