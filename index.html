@@ -2,204 +2,114 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>3D Scene – balls</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+  <title>3D Scene Test</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
+      background: #02030a;
       overflow: hidden;
-      background: radial-gradient(circle at 50% 0%, #16284a 0%, #02030a 55%, #000000 100%);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: #8a94b5;
     }
-
-    #container {
+    #scene-container {
       position: fixed;
       inset: 0;
     }
-
     canvas {
       display: block;
     }
-
-    .hint {
-      position: fixed;
-      bottom: 18px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 10px;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      opacity: 0.55;
-      pointer-events: none;
-      user-select: none;
-    }
   </style>
-
-  <!-- DİKKAT: type="module" YOK, import YOK -->
-  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-  <div id="container"></div>
-  <div class="hint">MOVE YOUR MOUSE · DRAG · SCROLL</div>
+  <div id="scene-container"></div>
+
+  <!-- Three.js ve eklentiler -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    // ---------- TEMEL SAHNE ----------
-    const container = document.getElementById('container');
+    console.log("THREE REVISION:", THREE.REVISION);
 
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x000000, 0.16);
+    const container = document.getElementById('scene-container');
 
-    const camera = new THREE.PerspectiveCamera(
-      45,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      50
-    );
-    camera.position.set(0, 0.8, 4);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.setClearColor(0x02030a, 1);
     container.appendChild(renderer.domElement);
 
-    // ---------- IŞIKLAR ----------
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x0b1020, 1.0);
-    hemi.position.set(0, 2, 0);
+    const scene = new THREE.Scene();
+
+    // Gradient benzeri bir ışık ortamı
+    const hemi = new THREE.HemisphereLight(0x3a5cff, 0x000000, 0.8);
     scene.add(hemi);
 
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-    dir.position.set(3, 4, 2);
-    dir.castShadow = true;
+    dir.position.set(3, 4, 5);
     scene.add(dir);
 
-    const rim = new THREE.DirectionalLight(0x88b5ff, 0.8);
-    rim.position.set(-2, 1, -3);
-    scene.add(rim);
+    // Kamera + kontroller
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0.7, 4.5);
 
-    // ---------- KONTROLLER ----------
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.enablePan = false;
-    controls.minDistance = 2.2;
-    controls.maxDistance = 6;
-    controls.minPolarAngle = Math.PI * 0.2;
-    controls.maxPolarAngle = Math.PI * 0.8;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2.0;
+    controls.maxDistance = 8.0;
 
-    // ---------- GLB MODELLER ----------
+    // TEST: Ortada kırmızı küre (GLB olmasa bile BUNU mutlaka görmen lazım)
+    const testGeo = new THREE.SphereGeometry(0.4, 32, 32);
+    const testMat = new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.3, metalness: 0.4 });
+    const testMesh = new THREE.Mesh(testGeo, testMat);
+    scene.add(testMesh);
+
+    // GLB’ler (repo kökünde oldukları için path sadece dosya adı)
     const loader = new THREE.GLTFLoader();
-    const group = new THREE.Group();
-    scene.add(group);
 
-    // Bu dosyalar repo root’unda olmalı:
-    // christmas_ball.glb ve christmas_tree_ball.glb
-    loader.load(
-      'christmas_ball.glb',
-      (gltf) => {
-        const ball = gltf.scene;
-        ball.position.set(-0.9, 0, 0);
-        ball.scale.set(1.1, 1.1, 1.1);
-        ball.traverse(obj => {
-          if (obj.isMesh) {
-            obj.castShadow = true;
-            obj.receiveShadow = true;
-            if (obj.material) {
-              obj.material.metalness = 0.7;
-              obj.material.roughness = 0.3;
-            }
+    const models = [
+      { file: 'christmas_ball.glb',      pos: new THREE.Vector3(-1.1, 0, 0), scale: 0.9 },
+      { file: 'christmas_tree_ball.glb', pos: new THREE.Vector3( 1.1, 0, 0), scale: 0.9 },
+    ];
+
+    models.forEach(m => {
+      loader.load(
+        m.file,
+        gltf => {
+          console.log('LOADED:', m.file, gltf);
+          const obj = gltf.scene;
+          obj.position.copy(m.pos);
+          obj.scale.setScalar(m.scale);
+          scene.add(obj);
+        },
+        xhr => {
+          // progress
+          if (xhr.total) {
+            console.log(`Loading ${m.file}: ${(xhr.loaded / xhr.total * 100).toFixed(1)}%`);
           }
-        });
-        group.add(ball);
-      },
-      undefined,
-      (err) => console.error('christmas_ball.glb yüklenemedi:', err)
-    );
-
-    loader.load(
-      'christmas_tree_ball.glb',
-      (gltf) => {
-        const treeBall = gltf.scene;
-        treeBall.position.set(0.9, -0.2, 0.1);
-        treeBall.scale.set(1.1, 1.1, 1.1);
-        treeBall.traverse(obj => {
-          if (obj.isMesh) {
-            obj.castShadow = true;
-            obj.receiveShadow = true;
-            if (obj.material) {
-              obj.material.metalness = 0.65;
-              obj.material.roughness = 0.35;
-            }
-          }
-        });
-        group.add(treeBall);
-      },
-      undefined,
-      (err) => console.error('christmas_tree_ball.glb yüklenemedi:', err)
-    );
-
-    // ---------- PARTİKÜL / TOZ ----------
-    const particles = new THREE.Group();
-    scene.add(particles);
-
-    const pGeo = new THREE.SphereGeometry(0.01, 6, 6);
-    const pMat = new THREE.MeshBasicMaterial({ color: 0x92b3ff });
-
-    for (let i = 0; i < 220; i++) {
-      const p = new THREE.Mesh(pGeo, pMat);
-      p.position.set(
-        (Math.random() - 0.5) * 8,
-        Math.random() * 4 - 1,
-        (Math.random() - 0.5) * 6
+        },
+        err => {
+          console.error('ERROR loading', m.file, err);
+        }
       );
-      particles.add(p);
-    }
-
-    // ---------- MOUSE PARALLAX ----------
-    let mouseX = 0, mouseY = 0;
-
-    window.addEventListener('mousemove', (e) => {
-      const nx = (e.clientX / window.innerWidth) * 2 - 1;
-      const ny = (e.clientY / window.innerHeight) * 2 - 1;
-      mouseX = nx;
-      mouseY = ny;
     });
 
-    // ---------- ANİMASYON DÖNGÜSÜ ----------
-    function animate() {
-      requestAnimationFrame(animate);
-
-      group.rotation.y += 0.003;
-      group.rotation.x += 0.0015;
-
-      const targetX = mouseX * 0.4;
-      const targetY = mouseY * 0.2;
-      camera.position.x += (targetX - camera.position.x) * 0.04;
-      camera.position.y += (-targetY + 0.8 - camera.position.y) * 0.04;
-      camera.lookAt(0, 0, 0);
-
-      particles.rotation.y += 0.0007;
-
-      controls.update();
-      renderer.render(scene, camera);
-    }
-
-    animate();
-
-    // ---------- RESIZE ----------
-    window.addEventListener('resize', () => {
+    function onResize() {
       const w = window.innerWidth;
       const h = window.innerHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-    });
+    }
+    window.addEventListener('resize', onResize);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
   </script>
 </body>
 </html>
