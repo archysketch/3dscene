@@ -2,215 +2,174 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>3D Snow Ornaments</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>3D Scene – Bubbles</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at top, #1b4f7b 0, #0b1b2b 40%, #05060a 100%);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    #sceneCanvas {
       width: 100%;
       height: 100%;
-      display: block;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 0%,
+        #14274b 0%,
+        #02030a 50%,
+        #000000 100%);
     }
-    .hint {
-      position: fixed;
-      left: 50%;
-      bottom: 20px;
-      transform: translateX(-50%);
-      color: rgba(255,255,255,0.7);
-      font-size: 11px;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      pointer-events: none;
-      user-select: none;
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
   </style>
 </head>
 <body>
-  <canvas id="sceneCanvas"></canvas>
-  <div class="hint">Move your mouse · drag · scroll</div>
+<canvas id="webgl"></canvas>
 
-  <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.162.0/build/three.module.js";
-    import { GLTFLoader } from "https://unpkg.com/three@0.162.0/examples/jsm/loaders/GLTFLoader.js";
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+  import { GLTFLoader } from 'https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js';
 
-    const canvas   = document.getElementById("sceneCanvas");
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: true
+  // === Temel sahne ===
+  const canvas = document.getElementById('webgl');
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true
+  });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.PerspectiveCamera(
+    35,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+  );
+  camera.position.set(0, 1.2, 8);
+  scene.add(camera);
+
+  // Işıklar
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 1.2);
+  scene.add(hemi);
+
+  const dir = new THREE.DirectionalLight(0xffffff, 1.8);
+  dir.position.set(5, 8, 5);
+  dir.castShadow = true;
+  scene.add(dir);
+
+  // Objeleri tutacak grup
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const loader = new GLTFLoader();
+
+  function addDebugSphere(x) {
+    const geo = new THREE.SphereGeometry(0.6, 32, 32);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xff5566,
+      metalness: 0.1,
+      roughness: 0.4
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, 0, 0);
+    group.add(m);
+  }
 
-    const scene = new THREE.Scene();
+  function loadBall(url, offsetX = 0) {
+    loader.load(
+      url,
+      (gltf) => {
+        const root = gltf.scene;
 
-    // Kamera
-    const camera = new THREE.PerspectiveCamera(
-      35,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100
-    );
-    camera.position.set(0, 0.8, 8);
-    scene.add(camera);
+        // Bounding box al – normalize et
+        const box = new THREE.Box3().setFromObject(root);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
 
-    // Işıklar
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.8);
-    hemi.position.set(0, 1, 0);
-    scene.add(hemi);
+        // Sahneye göre ölçekle
+        const desiredSize = 2.0; // kabaca çap ~2 birim
+        const scale = desiredSize / maxDim;
+        root.scale.setScalar(scale);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-    dir.position.set(4, 6, 4);
-    dir.castShadow = true;
-    scene.add(dir);
+        // Merkeze hizala
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        root.position.sub(center); // origin’e taşır
+        root.position.x += offsetX;
 
-    // Hafif sis
-    scene.fog = new THREE.FogExp2(0x05060a, 0.09);
-
-    // Zemin (çok belli olmayan soft bir plane)
-    const groundGeo = new THREE.PlaneGeometry(40, 40);
-    const groundMat = new THREE.MeshPhongMaterial({
-      color: 0x111111,
-      transparent: true,
-      opacity: 0.15
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -2;
-    scene.add(ground);
-
-    // GLB modeller
-    const loader = new GLTFLoader();
-    const modelUrls = [
-      "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_ball.glb",
-      "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_tree_ball.glb"
-    ];
-
-    const floatingObjects = [];
-
-    function addModelInstances(gltf, count, baseScale = 1) {
-      gltf.scene.traverse(obj => {
-        if (obj.isMesh) {
-          obj.castShadow = true;
-          obj.receiveShadow = true;
-          if (obj.material) {
-            obj.material.metalness = 0.5;
-            obj.material.roughness = 0.3;
+        // Materyalleri biraz görünür hale getir
+        root.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+            if (obj.material) {
+              obj.material.metalness = 0.25;
+              obj.material.roughness = 0.4;
+              obj.material.needsUpdate = true;
+            }
           }
-        }
-      });
-
-      for (let i = 0; i < count; i++) {
-        const m = gltf.scene.clone(true);
-        const spread = 4.0;
-
-        m.position.set(
-          (Math.random() - 0.5) * spread * 2,
-          -0.5 + Math.random() * 3.0,
-          (Math.random() - 0.5) * spread
-        );
-
-        const s = baseScale * (0.6 + Math.random() * 0.7);
-        m.scale.setScalar(s);
-
-        m.rotation.set(
-          Math.random() * Math.PI,
-          Math.random() * Math.PI,
-          Math.random() * Math.PI
-        );
-
-        scene.add(m);
-
-        floatingObjects.push({
-          mesh: m,
-          yOffset: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() * 0.6 - 0.3),
-          amp: 0.25 + Math.random() * 0.35
         });
+
+        group.add(root);
+      },
+      undefined,
+      (err) => {
+        console.error('GLB yüklenemedi:', url, err);
+        // Yüklenmezse debug için bir küre koy
+        addDebugSphere(offsetX);
       }
-    }
+    );
+  }
 
-    // Modelleri sırayla yükle
-    modelUrls.forEach((url, idx) => {
-      loader.load(
-        url,
-        gltf => {
-          // İlk modelden daha fazla, ikinciden biraz daha az koyduk
-          const count = idx === 0 ? 10 : 8;
-          const baseScale = idx === 0 ? 0.9 : 1.1;
-          addModelInstances(gltf, count, baseScale);
-        },
-        undefined,
-        err => {
-          console.error("Model yüklenemedi:", url, err);
-        }
-      );
-    });
+  // GLB dosyalarını yükle
+  // Dosya adları repo kökündekiyle birebir aynı olmalı
+  loadBall('./christmas_ball.glb', -1.8);
+  loadBall('./christmas_tree_ball.glb', 1.8);
 
-    // Mouse etkileşimi
-    let mouseX = 0, mouseY = 0;
-    let targetCamX = 0, targetCamY = 0;
+  // === Mouse etkileşimi ===
+  let targetRotX = 0, targetRotY = 0;
+  let rotX = 0, rotY = 0;
 
-    window.addEventListener("pointermove", (e) => {
-      const nx = (e.clientX / window.innerWidth) * 2 - 1;
-      const ny = (e.clientY / window.innerHeight) * 2 - 1;
-      mouseX = nx;
-      mouseY = ny;
-    });
+  window.addEventListener('pointermove', (e) => {
+    const x = (e.clientX / window.innerWidth) * 2 - 1;  // -1..1
+    const y = (e.clientY / window.innerHeight) * 2 - 1;
 
-    // Hafif kamera zoom için scroll
-    window.addEventListener("wheel", (e) => {
-      camera.position.z += e.deltaY * 0.002;
-      camera.position.z = THREE.MathUtils.clamp(camera.position.z, 5, 12);
-    }, { passive: true });
+    targetRotY = x * 0.8;  // yatayda daha fazla dönsün
+    targetRotX = y * 0.5;
+  });
 
-    // Resize
-    window.addEventListener("resize", () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    });
+  // Basit "fizik" hareketi
+  let t = 0;
 
-    // Animasyon döngüsü
-    let clock = new THREE.Clock();
+  function animate() {
+    requestAnimationFrame(animate);
 
-    function animate() {
-      requestAnimationFrame(animate);
+    t += 0.01;
+    // Yumuşak easing
+    rotX += (targetRotX - rotX) * 0.06;
+    rotY += (targetRotY - rotY) * 0.06;
 
-      const t = clock.getElapsedTime();
+    group.rotation.set(rotX, rotY, 0);
+    // Hafif yukarı-aşağı salınım
+    group.position.y = Math.sin(t) * 0.3;
 
-      // Kamera mouse’a doğru hafifçe kaysın
-      targetCamX = mouseX * 1.5;
-      targetCamY = mouseY * 0.8;
+    renderer.render(scene, camera);
+  }
 
-      camera.position.x += (targetCamX - camera.position.x) * 0.06;
-      camera.position.y += (-0.3 + targetCamY - camera.position.y) * 0.06;
-      camera.lookAt(0, 0.3, 0);
+  animate();
 
-      // Objeleri yumuşakça yüzdür
-      for (const obj of floatingObjects) {
-        const m = obj.mesh;
-        const tt = t + obj.yOffset;
-        m.position.y += Math.sin(tt) * 0.004 * obj.amp;
-        m.rotation.y += 0.005 + obj.rotSpeed * 0.01;
-        m.rotation.x += 0.003 * Math.sin(tt * 0.7);
-      }
-
-      renderer.render(scene, camera);
-    }
-
-    animate();
-  </script>
+  // Resize
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  });
+</script>
 </body>
 </html>
