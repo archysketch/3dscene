@@ -3,331 +3,292 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D Scene – GLB Molecules</title>
+  <title>3D Cloud</title>
   <style>
     body{
       margin:0;
       overflow:hidden;
-      background:radial-gradient(circle at center,#10264a,#000000);
-      font-family:system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:radial-gradient(circle at center,#10264a,#000);
     }
-    canvas{display:block;}
-    .hint{
-      position:fixed;
-      left:50%;
-      bottom:12px;
-      transform:translateX(-50%);
-      font-size:10px;
-      letter-spacing:.18em;
-      text-transform:uppercase;
-      color:rgba(255,255,255,.4);
-      pointer-events:none;
-      user-select:none;
-    }
+    canvas{ display:block; }
   </style>
 </head>
 <body>
 
-<div class="hint">move mouse • fling • scroll</div>
+<div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);color:#999;font-size:10px;letter-spacing:2px;">
+  MOVE • DRAG • FLING
+</div>
 
-<!-- three.js (eski, stabil sürüm) -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
-<!-- GLTFLoader (klasik, global) -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-  // ====== SCENE / CAMERA / RENDERER ======
-  var scene = new THREE.Scene();
 
-  var camera = new THREE.PerspectiveCamera(
-    45,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    100
+// =========================================================
+// SCENE / CAMERA / RENDERER
+// =========================================================
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  45,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  200
+);
+camera.position.set(0, 0.8, 11);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// =========================================================
+// LIGHTS — daha nötr aydınlatma, kararma yok
+// =========================================================
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+const dir = new THREE.DirectionalLight(0xffffff, 1.8);
+dir.position.set(4,4,6);
+scene.add(dir);
+
+const rim = new THREE.DirectionalLight(0x88bbff, 0.9);
+rim.position.set(-5,3,-5);
+scene.add(rim);
+
+// =========================================================
+// GLTF LOADER
+// =========================================================
+const loader = new THREE.GLTFLoader();
+
+let ballTemplate = null;
+let treeTemplate = null;
+
+let ballR = 0.8;
+let treeR = 0.8;
+
+let ready = 0;
+
+function computeRadius(object){
+  const box = new THREE.Box3().setFromObject(object);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  return Math.max(size.x,size.y,size.z) * 0.5;
+}
+
+function loadModel(url, callback){
+  loader.load(
+    url,
+    gltf => callback(gltf.scene),
+    undefined,
+    err => console.error("LOAD ERROR:", err)
   );
-  camera.position.set(0, 0.5, 10); // biraz geriye, ışık daha dengeli
+}
 
-  var renderer = new THREE.WebGLRenderer({ antialias:true });
+loadModel("christmas_ball.glb", model=>{
+  ballTemplate = model;
+  ballTemplate.visible = false;
+  ballTemplate.scale.set(1.2,1.2,1.2);
+  scene.add(ballTemplate);
+  ballR = computeRadius(ballTemplate);
+  done();
+});
+
+loadModel("christmas_tree_ball.glb", model=>{
+  treeTemplate = model;
+  treeTemplate.visible = false;
+  treeTemplate.scale.set(1.2,1.2,1.2);
+  scene.add(treeTemplate);
+  treeR = computeRadius(treeTemplate);
+  done();
+});
+
+function done(){
+  ready++;
+  if(ready===2){
+    spawnCloud();
+    animate();
+  }
+}
+
+// =========================================================
+// INSTANCE DATA
+// =========================================================
+let instances = [];
+
+function spawnCloud(){
+
+  const COUNT = 14;
+  const cloudR = 3.2;
+
+  for(let i=0;i<COUNT;i++){
+    const isBall = Math.random() < 0.5;
+    const template = isBall ? ballTemplate : treeTemplate;
+    const baseR = isBall ? ballR : treeR;
+
+    const obj = template.clone(true);
+    obj.visible = true;
+
+    const s = 1.05 + Math.random()*0.6;
+    obj.scale.multiplyScalar(s);
+    const r = baseR * s * 0.9;
+
+    // — garantili pozisyon — kümeyi bozmaz
+    let pos = new THREE.Vector3();
+    let ok = false;
+    for(let tries=0; tries<100 && !ok; tries++){
+      pos.set(
+        (Math.random()*2-1)*cloudR,
+        (Math.random()*2-1)*cloudR,
+        (Math.random()*2-1)*cloudR
+      );
+
+      ok = true;
+      for(let j=0;j<instances.length;j++){
+        const dist = pos.distanceTo(instances[j].mesh.position);
+        if(dist < (r + instances[j].radius)*0.95){ ok = false; break; }
+      }
+    }
+
+    obj.position.copy(pos);
+    scene.add(obj);
+
+    instances.push({
+      mesh: obj,
+      radius: r,
+      velocity: new THREE.Vector3(
+        (Math.random()-0.5)*0.03,
+        (Math.random()-0.5)*0.03,
+        (Math.random()-0.5)*0.03
+      ),
+      rot: new THREE.Vector3(
+        (Math.random()-0.5)*0.03,
+        (Math.random()-0.5)*0.03,
+        (Math.random()-0.5)*0.03
+      ),
+      noise: Math.random()*100
+    });
+  }
+}
+
+// =========================================================
+// MOUSE INTERACTION  (SADE DARBE FİZİĞİ)
+// =========================================================
+const mouse = new THREE.Vector2();
+const lastMouse = new THREE.Vector2();
+const mouseVel = new THREE.Vector2();
+let lastT = performance.now();
+
+const plane = new THREE.Plane(new THREE.Vector3(0,0,1), 0);
+const raycaster = new THREE.Raycaster();
+const mouseWorld = new THREE.Vector3();
+
+function updateMouseWorld(){
+  raycaster.setFromCamera(mouse, camera);
+  raycaster.ray.intersectPlane(plane, mouseWorld);
+}
+
+window.addEventListener("mousemove", e=>{
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = ((e.clientX - rect.left)/rect.width)*2 - 1;
+  const y = -((e.clientY - rect.top)/rect.height)*2 + 1;
+  mouse.set(x,y);
+
+  const now = performance.now();
+  const dt = (now-lastT)||16;
+  mouseVel.set((x-lastMouse.x), (y-lastMouse.y)).divideScalar(dt);
+  lastMouse.copy(mouse);
+  lastT = now;
+
+  updateMouseWorld();
+
+  const speed = mouseVel.length();
+  if(speed > 0.003){
+    const force = speed*1.4;
+    for(const inst of instances){
+      const p = inst.mesh.position;
+      const d = p.distanceTo(mouseWorld);
+      const range = 2.4;
+      if(d < range){
+        const dir = p.clone().sub(mouseWorld).normalize();
+        const f = force * (1 - d/range);
+        inst.velocity.addScaledVector(dir, f*0.2);
+      }
+    }
+  }
+});
+
+// =========================================================
+// ANIMATION LOOP
+// =========================================================
+const center = new THREE.Vector3(0,0,0);
+const clock = new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  const drag = 0.94;
+  const spring = 0.25;
+  const maxVel = 0.18;
+
+  // — hareket güncelle
+  for(const inst of instances){
+
+    // merkeze hafif çekiş
+    const toC = center.clone().sub(inst.mesh.position).multiplyScalar(spring*dt);
+    inst.velocity.add(toC);
+
+    // random noise hareketi
+    const t = clock.elapsedTime + inst.noise;
+    inst.velocity.x += Math.sin(t*1.3)*0.015*dt;
+    inst.velocity.y += Math.cos(t*1.7)*0.015*dt;
+    inst.velocity.z += Math.sin(t*1.1)*0.015*dt;
+
+    inst.velocity.multiplyScalar(drag);
+
+    if(inst.velocity.length()>maxVel){
+      inst.velocity.setLength(maxVel);
+    }
+
+    inst.mesh.position.addScaledVector(inst.velocity, 1);
+
+    inst.mesh.rotation.x += inst.rot.x*dt*5;
+    inst.mesh.rotation.y += inst.rot.y*dt*5;
+    inst.mesh.rotation.z += inst.rot.z*dt*5;
+  }
+
+  // — sphere–sphere çarpışma
+  for(let i=0;i<instances.length;i++){
+    for(let j=i+1;j<instances.length;j++){
+      const a = instances[i];
+      const b = instances[j];
+      const pa = a.mesh.position;
+      const pb = b.mesh.position;
+      const diff = pb.clone().sub(pa);
+      const dist = diff.length();
+      const minD = a.radius + b.radius;
+
+      if(dist>0 && dist<minD){
+        const overlap = (minD - dist)*0.5;
+        diff.normalize();
+        pa.addScaledVector(diff,-overlap);
+        pb.addScaledVector(diff,+overlap);
+      }
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+
+// =========================================================
+// RESIZE
+// =========================================================
+window.addEventListener("resize", ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  document.body.appendChild(renderer.domElement);
+});
 
-  // ====== LIGHTS ======
-  var keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
-  keyLight.position.set(4, 6, 6);
-  scene.add(keyLight);
-
-  var rimLight = new THREE.DirectionalLight(0x88bbff, 0.8);
-  rimLight.position.set(-6, 4, -4);
-  scene.add(rimLight);
-
-  var ambLight = new THREE.AmbientLight(0xffffff, 0.4);
-  scene.add(ambLight);
-
-  // ====== HELPERS ======
-  var loader = new THREE.GLTFLoader();
-
-  var ballTemplate = null;
-  var treeTemplate = null;
-  var ballRadius = 0.9;
-  var treeRadius = 0.9;
-
-  var instances = []; // { mesh, radius, velocity, rotSpeed, noiseOffset }
-
-  function computeRadius(obj){
-    var box = new THREE.Box3().setFromObject(obj);
-    var size = new THREE.Vector3();
-    box.getSize(size);
-    return Math.max(size.x, size.y, size.z) * 0.5;
-  }
-
-  function cloneDeep(obj){
-    return obj.clone(true);
-  }
-
-  // ====== MODELLERİ YÜKLE ======
-  var modelsReady = 0;
-  function onModelReady(){
-    modelsReady++;
-    if(modelsReady === 2){
-      ballRadius = computeRadius(ballTemplate);
-      treeRadius = computeRadius(treeTemplate);
-
-      // Template’leri görünmez yapıyoruz (sadece kopya için)
-      ballTemplate.visible = false;
-      treeTemplate.visible = false;
-      scene.add(ballTemplate);
-      scene.add(treeTemplate);
-
-      spawnCloud();
-      animate();
-    }
-  }
-
-  loader.load(
-    "christmas_ball.glb",
-    function(gltf){
-      ballTemplate = gltf.scene;
-      ballTemplate.position.set(0,0,0);
-      ballTemplate.scale.set(1.2,1.2,1.2);
-      onModelReady();
-    },
-    undefined,
-    function(err){ console.error("Ball load ERROR:", err); }
-  );
-
-  loader.load(
-    "christmas_tree_ball.glb",
-    function(gltf){
-      treeTemplate = gltf.scene;
-      treeTemplate.position.set(0,0,0);
-      treeTemplate.scale.set(1.2,1.2,1.2);
-      onModelReady();
-    },
-    undefined,
-    function(err){ console.error("Tree load ERROR:", err); }
-  );
-
-  // ====== BULUT OLUŞTUR (MOLECULE GİBİ) ======
-  function spawnCloud(){
-    var total = 14;           // toplam instance sayısı
-    var radiusCloud = 3.2;    // bulut yarıçapı
-
-    for(var i=0; i<total; i++){
-      var isBall = (Math.random() < 0.5);
-      var template = isBall ? ballTemplate : treeTemplate;
-      var baseRadius = isBall ? ballRadius : treeRadius;
-
-      var mesh = cloneDeep(template);
-
-      // hafif scale random
-      var s = 1.1 + Math.random()*0.6;
-      mesh.scale.multiplyScalar(s);
-      var instRadius = baseRadius * s * 0.9;
-
-      // diğerleriyle çakışmayacak random başlangıç pozisyonu:
-      var pos = new THREE.Vector3();
-      var attempts = 0;
-      var ok = false;
-      while(!ok && attempts < 80){
-        attempts++;
-        // küre içinde rastgele
-        var r = Math.cbrt(Math.random()) * radiusCloud;
-        var theta = Math.random() * Math.PI * 2;
-        var phi = Math.random() * Math.PI;
-        pos.set(
-          r * Math.sin(phi) * Math.cos(theta),
-          r * Math.cos(phi),
-          r * Math.sin(phi) * Math.sin(theta)
-        );
-
-        ok = true;
-        for(var j=0;j<instances.length;j++){
-          var other = instances[j];
-          var minDist = instRadius + other.radius;
-          if(pos.distanceTo(other.mesh.position) < minDist * 0.9){
-            ok = false; break;
-          }
-        }
-      }
-
-      mesh.position.copy(pos);
-      scene.add(mesh);
-
-      instances.push({
-        mesh: mesh,
-        radius: instRadius,
-        // her biri için farklı hız
-        velocity: new THREE.Vector3(
-          (Math.random()-0.5)*0.015,
-          (Math.random()-0.5)*0.015,
-          (Math.random()-0.5)*0.015
-        ),
-        rotSpeed: new THREE.Vector3(
-          (Math.random()-0.5)*0.03,
-          (Math.random()-0.5)*0.03,
-          (Math.random()-0.5)*0.03
-        ),
-        noiseOffset: Math.random()*100
-      });
-    }
-  }
-
-  // ====== MOUSE DARBE FİZİĞİ ======
-  var mouse = new THREE.Vector2(0,0);
-  var lastMouse = new THREE.Vector2(0,0);
-  var mouseVelocity = new THREE.Vector2(0,0);
-  var lastMouseTime = performance.now();
-
-  // sahne merkezinde hayali bir düzlem alıp mouse’u oraya projekte ediyoruz
-  var planeZ = new THREE.Plane(new THREE.Vector3(0,0,1), 0);
-  var raycaster = new THREE.Raycaster();
-  var mouseWorld = new THREE.Vector3();
-
-  function updateMouseWorld(){
-    raycaster.setFromCamera(mouse, camera);
-    raycaster.ray.intersectPlane(planeZ, mouseWorld);
-  }
-
-  window.addEventListener("mousemove", function(e){
-    var rect = renderer.domElement.getBoundingClientRect();
-    var x = ( (e.clientX - rect.left) / rect.width ) * 2 - 1;
-    var y = - ( (e.clientY - rect.top)  / rect.height) * 2 + 1;
-
-    mouse.set(x,y);
-
-    var now = performance.now();
-    var dt = (now - lastMouseTime) || 16;
-    mouseVelocity.set(
-      (x - lastMouse.x) / dt,
-      (y - lastMouse.y) / dt
-    );
-    lastMouse.copy(mouse);
-    lastMouseTime = now;
-
-    updateMouseWorld();
-
-    // hızlı hareket -> yakındakilere darbe
-    var speed = mouseVelocity.length();
-    if(speed > 0.001){
-      var strength = speed * 0.35; // darbe kuvveti
-      for(var i=0;i<instances.length;i++){
-        var inst = instances[i];
-        var p = inst.mesh.position;
-        var dist = p.distanceTo(mouseWorld);
-        var influenceR = 2.2;
-        if(dist < influenceR){
-          var dir = p.clone().sub(mouseWorld).normalize();
-          var falloff = 1 - (dist / influenceR);
-          inst.velocity.addScaledVector(dir, strength * falloff);
-        }
-      }
-    }
-  });
-
-  // ====== ANİMASYON DÖNGÜSÜ ======
-  var clock = new THREE.Clock();
-
-  function animate(){
-    requestAnimationFrame(animate);
-    var dt = clock.getDelta();
-    if(!dt) dt = 0.016;
-
-    var center = new THREE.Vector3(0,0,0);
-
-    // basit fizik parametreleri
-    var drag = 0.92;         // hava sürtünmesi
-    var springToCenter = 0.4; // merkeze geri çağırma
-    var maxSpeed = 0.9;
-
-    // 1) her instance’ı güncelle
-    for(var i=0;i<instances.length;i++){
-      var inst = instances[i];
-      var mesh = inst.mesh;
-
-      // merkeze hafif çekim (bulut dağılmasın)
-      var toCenter = center.clone().sub(mesh.position);
-      inst.velocity.addScaledVector(toCenter, springToCenter * dt * 0.1);
-
-      // biraz noise benzeri sapma – her biri farklı
-      var t = clock.elapsedTime + inst.noiseOffset;
-      inst.velocity.x += Math.sin(t*1.3) * 0.02 * dt;
-      inst.velocity.y += Math.cos(t*1.7) * 0.02 * dt;
-      inst.velocity.z += Math.sin(t*1.1) * 0.02 * dt;
-
-      // sürtünme
-      inst.velocity.multiplyScalar(drag);
-
-      // hız sınırı
-      if(inst.velocity.length() > maxSpeed*dt){
-        inst.velocity.setLength(maxSpeed*dt);
-      }
-
-      // pozisyonu güncelle
-      mesh.position.add(inst.velocity);
-
-      // rotasyon – hepsi farklı hızda
-      mesh.rotation.x += inst.rotSpeed.x * dt;
-      mesh.rotation.y += inst.rotSpeed.y * dt;
-      mesh.rotation.z += inst.rotSpeed.z * dt;
-    }
-
-    // 2) basit çarpışma çözümü (sphere–sphere separation)
-    for(var i=0;i<instances.length;i++){
-      for(var j=i+1;j<instances.length;j++){
-        var a = instances[i];
-        var b = instances[j];
-        var pa = a.mesh.position;
-        var pb = b.mesh.position;
-
-        var diff = pb.clone().sub(pa);
-        var dist = diff.length();
-        var minDist = a.radius + b.radius;
-
-        if(dist > 0 && dist < minDist){
-          var overlap = (minDist - dist) * 0.5;
-          diff.normalize();
-
-          // pozisyonları it
-          pa.addScaledVector(diff, -overlap);
-          pb.addScaledVector(diff,  overlap);
-
-          // ufak hız düzeltmesi – çok kaotik olmasın diye küçük
-          a.velocity.addScaledVector(diff, -overlap * 0.03);
-          b.velocity.addScaledVector(diff,  overlap * 0.03);
-        }
-      }
-    }
-
-    renderer.render(scene, camera);
-  }
-
-  // ====== RESIZE ======
-  window.addEventListener("resize", function(){
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
 </script>
 
 </body>
