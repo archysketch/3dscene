@@ -2,18 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>3D Scene Test</title>
+  <title>Three.js Minimal Test</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      background: #02030a;
       overflow: hidden;
-    }
-    #scene-container {
-      position: fixed;
-      inset: 0;
+      background: radial-gradient(circle at 50% 0%, #123a79 0%, #02030a 55%, #000000 100%);
     }
     canvas {
       display: block;
@@ -21,92 +17,54 @@
   </style>
 </head>
 <body>
-  <div id="scene-container"></div>
 
-  <!-- Three.js ve eklentiler -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- SADECE THREE -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 
   <script>
-    console.log("THREE REVISION:", THREE.REVISION);
+    console.log("THREE REVISION:", THREE && THREE.REVISION);
 
-    const container = document.getElementById('scene-container');
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x02030a, 1);
-    container.appendChild(renderer.domElement);
-
+    // === SAHNE / KAMERA / RENDERER ===
     const scene = new THREE.Scene();
 
-    // Gradient benzeri bir ışık ortamı
-    const hemi = new THREE.HemisphereLight(0x3a5cff, 0x000000, 0.8);
-    scene.add(hemi);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 0, 5);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-    dir.position.set(3, 4, 5);
-    scene.add(dir);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0); // arka planı şeffaf bırak (gradient görünsün)
+    document.body.appendChild(renderer.domElement);
 
-    // Kamera + kontroller
-    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 0.7, 4.5);
+    // === IŞIK + KÜP (TEST OBJESİ) ===
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(3, 4, 5);
+    scene.add(light);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 2.0;
-    controls.maxDistance = 8.0;
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, metalness: 0.3, roughness: 0.4 });
+    const cube = new THREE.Mesh(geo, mat);
+    scene.add(cube);
 
-    // TEST: Ortada kırmızı küre (GLB olmasa bile BUNU mutlaka görmen lazım)
-    const testGeo = new THREE.SphereGeometry(0.4, 32, 32);
-    const testMat = new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.3, metalness: 0.4 });
-    const testMesh = new THREE.Mesh(testGeo, testMat);
-    scene.add(testMesh);
-
-    // GLB’ler (repo kökünde oldukları için path sadece dosya adı)
-    const loader = new THREE.GLTFLoader();
-
-    const models = [
-      { file: 'christmas_ball.glb',      pos: new THREE.Vector3(-1.1, 0, 0), scale: 0.9 },
-      { file: 'christmas_tree_ball.glb', pos: new THREE.Vector3( 1.1, 0, 0), scale: 0.9 },
-    ];
-
-    models.forEach(m => {
-      loader.load(
-        m.file,
-        gltf => {
-          console.log('LOADED:', m.file, gltf);
-          const obj = gltf.scene;
-          obj.position.copy(m.pos);
-          obj.scale.setScalar(m.scale);
-          scene.add(obj);
-        },
-        xhr => {
-          // progress
-          if (xhr.total) {
-            console.log(`Loading ${m.file}: ${(xhr.loaded / xhr.total * 100).toFixed(1)}%`);
-          }
-        },
-        err => {
-          console.error('ERROR loading', m.file, err);
-        }
-      );
-    });
-
-    function onResize() {
+    // === EKRAN BOYUTU DEĞİŞİNCE ===
+    window.addEventListener('resize', () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-    }
-    window.addEventListener('resize', onResize);
+    });
 
+    // === ANİMASYON ===
     function animate() {
       requestAnimationFrame(animate);
-      controls.update();
+      cube.rotation.y += 0.01;
+      cube.rotation.x += 0.006;
       renderer.render(scene, camera);
     }
     animate();
