@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Three.js Minimal Test</title>
+  <title>3D Scene – Balls</title>
   <style>
     html, body {
       margin: 0;
@@ -18,8 +18,10 @@
 </head>
 <body>
 
-  <!-- SADECE THREE (başka script yok!) -->
+  <!-- THREE JS (global THREE objesi) -->
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <!-- GLTF LOADER (global THREE.GLTFLoader ekler) -->
+  <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
     console.log("THREE REVISION:", THREE && THREE.REVISION);
@@ -33,27 +35,97 @@
       0.1,
       100
     );
-    camera.position.set(0, 0, 5);
+    camera.position.set(0, 0, 8);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000, 0); // arka plan transparan kalsın
+    renderer.setClearColor(0x000000, 0);
     document.body.appendChild(renderer.domElement);
 
-    // === IŞIK + TEST KÜPÜ ===
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(3, 4, 5);
-    scene.add(light);
+    // === IŞIKLAR ===
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambient);
 
-    const geo = new THREE.BoxGeometry(1, 1, 1);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xff4444,
-      metalness: 0.3,
-      roughness: 0.4
-    });
-    const cube = new THREE.Mesh(geo, mat);
-    scene.add(cube);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(4, 6, 5);
+    scene.add(dir);
+
+    const rim = new THREE.DirectionalLight(0x66aaff, 0.5);
+    rim.position.set(-4, -3, -5);
+    scene.add(rim);
+
+    // === MODELLERİ TAŞIYAN GRUP ===
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const loader = new THREE.GLTFLoader();
+
+    // GLB path’leri (repo kökünde oldukları için direkt isim)
+    loader.load(
+      'christmas_ball.glb',
+      gltf => {
+        const m = gltf.scene;
+        m.position.set(-1.5, 0, 0);
+        m.scale.set(2, 2, 2);
+        group.add(m);
+      },
+      undefined,
+      err => console.error('Error loading christmas_ball.glb', err)
+    );
+
+    loader.load(
+      'christmas_tree_ball.glb',
+      gltf => {
+        const m = gltf.scene;
+        m.position.set(1.5, 0, 0);
+        m.scale.set(2, 2, 2);
+        group.add(m);
+      },
+      undefined,
+      err => console.error('Error loading christmas_tree_ball.glb', err)
+    );
+
+    // === BASİT MOUSE ROTASYONU (OrbitControls KULLANMADAN) ===
+    let isPointerDown = false;
+    let lastX = 0;
+    let lastY = 0;
+    let rotY = 0;
+    let rotX = 0;
+    let targetRotY = 0;
+    let targetRotX = 0;
+
+    function onPointerDown(e) {
+      isPointerDown = true;
+      lastX = e.clientX || e.touches?.[0]?.clientX || 0;
+      lastY = e.clientY || e.touches?.[0]?.clientY || 0;
+    }
+
+    function onPointerMove(e) {
+      if (!isPointerDown) return;
+      const x = e.clientX || e.touches?.[0]?.clientX || 0;
+      const y = e.clientY || e.touches?.[0]?.clientY || 0;
+      const dx = x - lastX;
+      const dy = y - lastY;
+      lastX = x;
+      lastY = y;
+
+      // yatay drag -> Y rotasyonu, dikey drag -> X rotasyonu
+      targetRotY += dx * 0.005;
+      targetRotX += dy * 0.005;
+    }
+
+    function onPointerUp() {
+      isPointerDown = false;
+    }
+
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    window.addEventListener('touchstart', onPointerDown, { passive: true });
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
 
     // === RESIZE ===
     window.addEventListener('resize', () => {
@@ -65,10 +137,20 @@
     });
 
     // === ANİMASYON ===
+    let t = 0;
     function animate() {
       requestAnimationFrame(animate);
-      cube.rotation.y += 0.01;
-      cube.rotation.x += 0.006;
+
+      // drag’de gelen hedef rotasyona yumuşak yaklaş
+      rotY += (targetRotY - rotY) * 0.08;
+      rotX += (targetRotX - rotX) * 0.08;
+      group.rotation.y = rotY;
+      group.rotation.x = rotX * 0.7;
+
+      // hafif yukarı-aşağı salınma
+      t += 0.01;
+      group.position.y = Math.sin(t) * 0.2;
+
       renderer.render(scene, camera);
     }
     animate();
