@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interactive 3D Desk Scene</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #19294a 0%, #050611 55%, #020309 100%);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<!-- Three.js + klasik OrbitControls (module istemiyor) -->
+<script src="https://unpkg.com/three@0.161.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  const canvas   = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setClearColor(0x050611, 1);
+
+  const scene = new THREE.Scene();
+
+  // Hafif sis / glow
+  scene.fog = new THREE.FogExp2(0x050611, 0.045);
+
+  const camera = new THREE.PerspectiveCamera(
+    40,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+  );
+  camera.position.set(0, 3.6, 7.5);
+
+  // Işıklar
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x111122, 0.9);
+  scene.add(hemi);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(4, 8, 4);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+
+  // Zemin
+  const floorGeo = new THREE.PlaneGeometry(20, 20, 1, 1);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x14151e,
+    roughness: 0.9,
+    metalness: 0.05
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Objeler (küre + kutular) – “desk objeleri” gibi düşün
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const objectCount = 12;
+  const objects = [];
+
+  const palette = [0xf2f4ff, 0xffc6a5, 0x9dd6ff, 0xffe66d, 0xd0b3ff];
+
+  for (let i = 0; i < objectCount; i++) {
+    const isSphere = i % 2 === 0;
+
+    const geo = isSphere
+      ? new THREE.SphereGeometry(0.35 + Math.random() * 0.25, 32, 32)
+      : new THREE.BoxGeometry(0.6 + Math.random() * 0.3, 0.2 + Math.random() * 0.4, 0.6 + Math.random() * 0.3);
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: palette[i % palette.length],
+      roughness: 0.45,
+      metalness: 0.25
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    // Başlangıç pozisyonu
+    mesh.position.set(
+      (Math.random() - 0.5) * 4,
+      0.6 + Math.random() * 0.7,
+      (Math.random() - 0.5) * 2.5
+    );
+
+    // Rastgele hız vektörü (masa üzerinde dolanma)
+    const vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.08,
+      0,
+      (Math.random() - 0.5) * 0.08
+    );
+
+    group.add(mesh);
+    objects.push({ mesh, vel });
+  }
+
+  // Kamera için mouse hedefi
+  let mouseX = 0, mouseY = 0;
+  let targetRotX = 0, targetRotY = 0;
+
+  window.addEventListener('pointermove', (e) => {
+    const nx = (e.clientX / window.innerWidth) * 2 - 1;  // -1..1
+    const ny = (e.clientY / window.innerHeight) * 2 - 1;
+    mouseX = nx;
+    mouseY = ny;
+
+    // Mouse’a göre sahneyi hafif çevir
+    targetRotY = nx * 0.4;              // sağ/sol
+    targetRotX = ny * 0.25;             // yukarı/aşağı
+  });
+
+  // OrbitControls fakat sadece yumuşak takip için (mouse drag ile)
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.enablePan = false;
+  controls.minDistance = 4;
+  controls.maxDistance = 12;
+  controls.maxPolarAngle = Math.PI / 2.1;
+  controls.target.set(0, 1.2, 0);
+
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  let lastTime = performance.now();
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    // Objeleri hafif fizik / zıplama ile hareket ettir
+    const boundsX = 4.5;
+    const boundsZ = 3.0;
+
+    for (const obj of objects) {
+      obj.mesh.position.addScaledVector(obj.vel, dt * 60);
+
+      // duvarlara çarp
+      if (obj.mesh.position.x < -boundsX || obj.mesh.position.x > boundsX) {
+        obj.vel.x *= -1;
+        obj.mesh.position.x = THREE.MathUtils.clamp(obj.mesh.position.x, -boundsX, boundsX);
+      }
+      if (obj.mesh.position.z < -boundsZ || obj.mesh.position.z > boundsZ) {
+        obj.vel.z *= -1;
+        obj.mesh.position.z = THREE.MathUtils.clamp(obj.mesh.position.z, -boundsZ, boundsZ);
+      }
+
+      // hafif dönme
+      obj.mesh.rotation.x += dt * 0.4;
+      obj.mesh.rotation.y += dt * 0.6;
+    }
+
+    // Mouse’a göre sahneyi çok hafif eğ
+    group.rotation.y += (targetRotY - group.rotation.y) * 0.04;
+    group.rotation.x += (targetRotX - group.rotation.x) * 0.04;
+
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  animate(performance.now());
+})();
+</script>
+</body>
+</html>
