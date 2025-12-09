@@ -2,158 +2,133 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>3D Scene – Balls</title>
+  <title>3D Scene test</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       overflow: hidden;
-      background: radial-gradient(circle at 50% 0%, #123a79 0%, #02030a 55%, #000000 100%);
+      background: radial-gradient(circle at 50% 0%, #123363 0%, #03040a 55%, #020308 100%);
     }
-    canvas {
-      display: block;
+    #scene-container {
+      width: 100vw;
+      height: 100vh;
     }
   </style>
 </head>
 <body>
+  <div id="scene-container"></div>
 
-  <!-- THREE JS (global THREE objesi) -->
+  <!-- THREE global sürüm -->
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <!-- GLTF LOADER (global THREE.GLTFLoader ekler) -->
+
+  <!-- ES MODULE DEĞİL: eski examples/js yolu -->
+  <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    console.log("THREE REVISION:", THREE && THREE.REVISION);
+    // TEMEL SAHNE
+    const container = document.getElementById('scene-container');
 
-    // === SAHNE / KAMERA / RENDERER ===
     const scene = new THREE.Scene();
 
     const camera = new THREE.PerspectiveCamera(
-      45,
+      35,
       window.innerWidth / window.innerHeight,
       0.1,
       100
     );
-    camera.position.set(0, 0, 8);
+    camera.position.set(0, 1.2, 6);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000, 0);
-    document.body.appendChild(renderer.domElement);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
 
-    // === IŞIKLAR ===
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambient);
+    // IŞIKLAR
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x080820, 1.2);
+    scene.add(hemi);
 
     const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-    dir.position.set(4, 6, 5);
+    dir.position.set(3, 5, 4);
     scene.add(dir);
 
-    const rim = new THREE.DirectionalLight(0x66aaff, 0.5);
-    rim.position.set(-4, -3, -5);
-    scene.add(rim);
+    // KONTROLLER
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.maxPolarAngle = Math.PI * 0.55;
 
-    // === MODELLERİ TAŞIYAN GRUP ===
-    const group = new THREE.Group();
-    scene.add(group);
+    // KÜÇÜK TEST KÜP (görünsün diye)
+    const cubeGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const cubeMat = new THREE.MeshStandardMaterial({ color: 0xff4444 });
+    const cube = new THREE.Mesh(cubeGeo, cubeMat);
+    cube.position.set(-1, 0.3, 0);
+    scene.add(cube);
 
+    // GLTF LOADER — DİKKAT: new THREE.GLTFLoader()
     const loader = new THREE.GLTFLoader();
 
-    // GLB path’leri (repo kökünde oldukları için direkt isim)
+    // 1) christmas_ball.glb
     loader.load(
-      'christmas_ball.glb',
-      gltf => {
-        const m = gltf.scene;
-        m.position.set(-1.5, 0, 0);
-        m.scale.set(2, 2, 2);
-        group.add(m);
+      'christmas_ball.glb',      // dosya adı repo kökünde
+      function (gltf) {
+        const model = gltf.scene;
+        model.position.set(0, 0, 0);
+        model.scale.set(1.2, 1.2, 1.2);
+        scene.add(model);
+
+        // hafif dönme animasyonu için referans
+        model.userData.spin = true;
       },
       undefined,
-      err => console.error('Error loading christmas_ball.glb', err)
+      function (error) {
+        console.error('Error loading christmas_ball.glb:', error);
+      }
     );
 
+    // 2) christmas_tree_ball.glb
     loader.load(
       'christmas_tree_ball.glb',
-      gltf => {
-        const m = gltf.scene;
-        m.position.set(1.5, 0, 0);
-        m.scale.set(2, 2, 2);
-        group.add(m);
+      function (gltf) {
+        const model = gltf.scene;
+        model.position.set(1.8, 0, 0);
+        model.scale.set(1.2, 1.2, 1.2);
+        scene.add(model);
+
+        model.userData.spin = true;
       },
       undefined,
-      err => console.error('Error loading christmas_tree_ball.glb', err)
+      function (error) {
+        console.error('Error loading christmas_tree_ball.glb:', error);
+      }
     );
 
-    // === BASİT MOUSE ROTASYONU (OrbitControls KULLANMADAN) ===
-    let isPointerDown = false;
-    let lastX = 0;
-    let lastY = 0;
-    let rotY = 0;
-    let rotX = 0;
-    let targetRotY = 0;
-    let targetRotX = 0;
-
-    function onPointerDown(e) {
-      isPointerDown = true;
-      lastX = e.clientX || e.touches?.[0]?.clientX || 0;
-      lastY = e.clientY || e.touches?.[0]?.clientY || 0;
-    }
-
-    function onPointerMove(e) {
-      if (!isPointerDown) return;
-      const x = e.clientX || e.touches?.[0]?.clientX || 0;
-      const y = e.clientY || e.touches?.[0]?.clientY || 0;
-      const dx = x - lastX;
-      const dy = y - lastY;
-      lastX = x;
-      lastY = y;
-
-      // yatay drag -> Y rotasyonu, dikey drag -> X rotasyonu
-      targetRotY += dx * 0.005;
-      targetRotX += dy * 0.005;
-    }
-
-    function onPointerUp() {
-      isPointerDown = false;
-    }
-
-    window.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('mousemove', onPointerMove);
-    window.addEventListener('mouseup', onPointerUp);
-
-    window.addEventListener('touchstart', onPointerDown, { passive: true });
-    window.addEventListener('touchmove', onPointerMove, { passive: true });
-    window.addEventListener('touchend', onPointerUp);
-
-    // === RESIZE ===
-    window.addEventListener('resize', () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    });
-
-    // === ANİMASYON ===
-    let t = 0;
+    // ANİMASYON
     function animate() {
       requestAnimationFrame(animate);
 
-      // drag’de gelen hedef rotasyona yumuşak yaklaş
-      rotY += (targetRotY - rotY) * 0.08;
-      rotX += (targetRotX - rotX) * 0.08;
-      group.rotation.y = rotY;
-      group.rotation.x = rotX * 0.7;
+      // sahnedeki modelleri yavaşça döndür
+      scene.traverse(obj => {
+        if (obj.userData.spin) {
+          obj.rotation.y += 0.005;
+        }
+      });
 
-      // hafif yukarı-aşağı salınma
-      t += 0.01;
-      group.position.y = Math.sin(t) * 0.2;
+      cube.rotation.y += 0.01;
 
+      controls.update();
       renderer.render(scene, camera);
     }
     animate();
+
+    // RESİZE
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
