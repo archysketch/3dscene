@@ -39,7 +39,7 @@
     }
   </style>
 
-  <!-- *** ÖNCE three.js ve ekleri – type="module" YOK *** -->
+  <!-- DİKKAT: type="module" YOK, import YOK -->
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -79,7 +79,6 @@
     dir.castShadow = true;
     scene.add(dir);
 
-    // Hafif rim ışık
     const rim = new THREE.DirectionalLight(0x88b5ff, 0.8);
     rim.position.set(-2, 1, -3);
     scene.add(rim);
@@ -99,7 +98,8 @@
     const group = new THREE.Group();
     scene.add(group);
 
-    // Bu dosyalar repo root’unda: christmas_ball.glb, christmas_tree_ball.glb
+    // Bu dosyalar repo root’unda olmalı:
+    // christmas_ball.glb ve christmas_tree_ball.glb
     loader.load(
       'christmas_ball.glb',
       (gltf) => {
@@ -175,7 +175,6 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // kamera / grup hafif hareket
       group.rotation.y += 0.003;
       group.rotation.x += 0.0015;
 
