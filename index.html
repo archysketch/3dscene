@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D Scene – Bouncy GLB Balls</title>
+  <title>3D Scene – Smooth Balls</title>
   <style>
     html,body{
       margin:0;
@@ -34,7 +34,7 @@
 
   <!-- three.js (r126, global THREE) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
-  <!-- GLTFLoader (aynı sürüm, THREE.GLTFLoader olarak) -->
+  <!-- GLTFLoader -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
@@ -56,7 +56,7 @@
     renderer.setClearColor(0x000000, 0);
     document.body.appendChild(renderer.domElement);
 
-    // ===== LIGHTS (daha düz, uzaklaşınca kararmasın) =====
+    // ===== LIGHTS =====
     var hemi = new THREE.HemisphereLight(0x88aaff, 0x050506, 0.7);
     scene.add(hemi);
 
@@ -101,10 +101,11 @@
 
         group.add(clone);
 
+        // daha küçük, yumuşak temel hız
         var baseVel = new THREE.Vector3(
-          (Math.random() * 2 - 1) * 0.015,
-          (Math.random() * 2 - 1) * 0.015,
-          (Math.random() * 2 - 1) * 0.015
+          (Math.random() * 2 - 1) * 0.006,
+          (Math.random() * 2 - 1) * 0.006,
+          (Math.random() * 2 - 1) * 0.006
         );
 
         bodies.push({
@@ -155,9 +156,8 @@
     var mouseNorm = new THREE.Vector2(0, 0); // parallax için
     var scrollOffset = 0;
 
-    // impulse için world pozisyonu
     function mouseToWorld(){
-      // Lusion’daki gibi z≈0 düzlemi etrafında kümeliyoruz
+      // z≈0 civarında etkilesin
       return new THREE.Vector3(
         mouseNorm.x * 6.0,
         -mouseNorm.y * 4.0,
@@ -178,12 +178,12 @@
       scrollOffset = Math.max(-2, Math.min(2, scrollOffset));
     }, { passive:true });
 
-    // ===== MOUSE IMPULSE (hareket edince vurma efekti) =====
+    // ===== MOUSE IMPULSE (daha yumuşak) =====
     function applyMouseImpulse(){
       if (!bodies.length) return;
 
       var mousePos = mouseToWorld();
-      var radius = 4.0;
+      var radius = 5.0;
 
       for (var i = 0; i < bodies.length; i++){
         var b = bodies[i];
@@ -193,10 +193,11 @@
         var dist = delta.length();
         if (dist === 0 || dist > radius) continue;
 
-        var falloff = 1 - dist / radius;           // yakındakiler daha çok etkilenir
+        var falloff = 1 - dist / radius;   // yakındakiler daha çok
         delta.normalize();
 
-        var strength = 1.4 * falloff;              // vurma gücü
+        // daha düşük kuvvet, kaos azalıyor
+        var strength = 0.6 * falloff;
         b.velocity.addScaledVector(delta, strength);
       }
     }
@@ -228,27 +229,57 @@
     }
 
     function updatePhysics(dt){
-      var damping = 0.985;
-      var centerSpring = 0.35;   // merkeze hafif yay kuvveti
-      var jitter = 0.004;        // random noise
+      // parametreler → daha smooth & homojen
+      var damping = 0.93;
+      var centerShellRadius = 4.5;  // hepsi bu kabuğun etrafında
+      var shellStrength = 0.25;
+      var jitter = 0.0015;
+      var repelStrength = 0.06;
+      var minDist = 2.1;            // pseudo-collision mesafesi
+      var maxSpeed = 0.25;
 
+      // --- pairwise repulsion (basit çarpışma) ---
       for (var i = 0; i < bodies.length; i++){
-        var b = bodies[i];
+        for (var j = i + 1; j < bodies.length; j++){
+          var bi = bodies[i];
+          var bj = bodies[j];
+          var pi = bi.mesh.position;
+          var pj = bj.mesh.position;
+
+          var diff = pi.clone().sub(pj);
+          var dist = diff.length();
+          if (!dist || dist > minDist) continue;
+
+          diff.normalize();
+          var push = (minDist - dist) * repelStrength;
+
+          bi.velocity.addScaledVector(diff,  push);
+          bj.velocity.addScaledVector(diff, -push);
+        }
+      }
+
+      // --- tek tek gövdeler ---
+      for (var k = 0; k < bodies.length; k++){
+        var b = bodies[k];
         var m = b.mesh;
         var v = b.velocity;
 
-        // hafif kendi etrafında dönsün
-        m.rotation.y += 0.45 * dt;
-        m.rotation.x += 0.18 * dt;
+        // hafif dönüş
+        m.rotation.y += 0.30 * dt;
+        m.rotation.x += 0.15 * dt;
 
-        // temel drift (baseVel etrafında)
-        v.addScaledVector(b.baseVel, 0.2);
+        // base drift
+        v.addScaledVector(b.baseVel, 0.25);
 
-        // merkeze doğru mini yay (drift edip dağılmasınlar)
-        var toCenter = m.position.clone().multiplyScalar(-1);
-        v.addScaledVector(toCenter, centerSpring * dt);
+        // kabuk yay kuvveti (tam merkeze değil; bir radius etrafında)
+        var radial = m.position.length();
+        if (radial > 0){
+          var dir = m.position.clone().normalize();
+          var diffR = radial - centerShellRadius; // pozitifse dışarıda, negatifse içeride
+          v.addScaledVector(dir, -diffR * shellStrength * dt);
+        }
 
-        // küçük random gürültü – organik hareket
+        // küçük random noise
         v.x += (Math.random() - 0.5) * jitter;
         v.y += (Math.random() - 0.5) * jitter;
         v.z += (Math.random() - 0.5) * jitter;
@@ -256,7 +287,12 @@
         // damping
         v.multiplyScalar(damping);
 
-        // pozisyon güncelle
+        // hız clamp
+        if (v.lengthSq() > maxSpeed * maxSpeed){
+          v.setLength(maxSpeed);
+        }
+
+        // pozisyon
         m.position.addScaledVector(v, dt * 60);
 
         // bounds & sekme
@@ -270,14 +306,14 @@
     }
 
     function updateCamera(dt){
-      // mouse’a göre grup eğimi (parallax)
+      // mouse’a göre parallax
       var tiltX = mouseNorm.y * 0.35;
       var tiltY = mouseNorm.x * 0.55;
 
       group.rotation.x += (tiltX - group.rotation.x) * 0.06;
       group.rotation.y += (tiltY - group.rotation.y) * 0.06;
 
-      // scroll ile zoom ama ışık/fog değişmediği için kararmıyor
+      // scroll ile yumuşak zoom
       var targetZ = 18 + scrollOffset * 3;
       camera.position.z += (targetZ - camera.position.z) * 0.06;
       camera.lookAt(0, 0, 0);
