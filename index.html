@@ -2,174 +2,234 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>3D Scene – Bubbles</title>
+  <title>3D Scene – test</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: radial-gradient(circle at 50% 0%,
-        #14274b 0%,
-        #02030a 50%,
-        #000000 100%);
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:#02030a;
     }
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
+    body{
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    canvas{
+      display:block;
+    }
+    #hint{
+      position:fixed;
+      left:50%;
+      bottom:18px;
+      transform:translateX(-50%);
+      font-size:12px;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:rgba(255,255,255,.35);
+      pointer-events:none;
+      user-select:none;
     }
   </style>
 </head>
 <body>
-<canvas id="webgl"></canvas>
+  <div id="hint">move • drag • scroll</div>
 
-<script type="module">
-  import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
-  import { GLTFLoader } from 'https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js';
+  <!-- Three.js + GLTFLoader (ES modules) -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
 
-  // === Temel sahne ===
-  const canvas = document.getElementById('webgl');
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    alpha: true
-  });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputEncoding = THREE.sRGBEncoding;
+    // ---------- temel sahne ----------
+    const scene   = new THREE.Scene();
+    const camera  = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 12);
 
-  const scene = new THREE.Scene();
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(
-    35,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    100
-  );
-  camera.position.set(0, 1.2, 8);
-  scene.add(camera);
-
-  // Işıklar
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 1.2);
-  scene.add(hemi);
-
-  const dir = new THREE.DirectionalLight(0xffffff, 1.8);
-  dir.position.set(5, 8, 5);
-  dir.castShadow = true;
-  scene.add(dir);
-
-  // Objeleri tutacak grup
-  const group = new THREE.Group();
-  scene.add(group);
-
-  const loader = new GLTFLoader();
-
-  function addDebugSphere(x) {
-    const geo = new THREE.SphereGeometry(0.6, 32, 32);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xff5566,
-      metalness: 0.1,
-      roughness: 0.4
-    });
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, 0, 0);
-    group.add(m);
-  }
-
-  function loadBall(url, offsetX = 0) {
-    loader.load(
-      url,
-      (gltf) => {
-        const root = gltf.scene;
-
-        // Bounding box al – normalize et
-        const box = new THREE.Box3().setFromObject(root);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z) || 1;
-
-        // Sahneye göre ölçekle
-        const desiredSize = 2.0; // kabaca çap ~2 birim
-        const scale = desiredSize / maxDim;
-        root.scale.setScalar(scale);
-
-        // Merkeze hizala
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        root.position.sub(center); // origin’e taşır
-        root.position.x += offsetX;
-
-        // Materyalleri biraz görünür hale getir
-        root.traverse((obj) => {
-          if (obj.isMesh) {
-            obj.castShadow = true;
-            obj.receiveShadow = true;
-            if (obj.material) {
-              obj.material.metalness = 0.25;
-              obj.material.roughness = 0.4;
-              obj.material.needsUpdate = true;
-            }
-          }
-        });
-
-        group.add(root);
+    // arka plan gradient
+    const topColor    = new THREE.Color(0x0b2345);
+    const bottomColor = new THREE.Color(0x000005);
+    const bgGeo   = new THREE.PlaneGeometry(40, 40);
+    const bgMat   = new THREE.ShaderMaterial({
+      uniforms:{
+        top:{value:topColor},
+        bottom:{value:bottomColor}
       },
-      undefined,
-      (err) => {
-        console.error('GLB yüklenemedi:', url, err);
-        // Yüklenmezse debug için bir küre koy
-        addDebugSphere(offsetX);
+      vertexShader:`
+        varying vec2 vUv;
+        void main(){
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }
+      `,
+      fragmentShader:`
+        varying vec2 vUv;
+        uniform vec3 top;
+        uniform vec3 bottom;
+        void main(){
+          float t = smoothstep(0.0,1.0,vUv.y);
+          vec3 col = mix(bottom, top, t);
+          gl_FragColor = vec4(col,1.0);
+        }
+      `,
+      depthWrite:false
+    });
+    const bgMesh  = new THREE.Mesh(bgGeo, bgMat);
+    bgMesh.position.z = -10;
+    scene.add(bgMesh);
+
+    // ışıklar
+    const amb = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(amb);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+    dir.position.set(5, 8, 10);
+    scene.add(dir);
+
+    const rim = new THREE.DirectionalLight(0x88aaff, 0.8);
+    rim.position.set(-6, -3, -4);
+    scene.add(rim);
+
+    // kontroller
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = false;
+    controls.minDistance = 6;
+    controls.maxDistance = 20;
+
+    // pencere boyutu değişince
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---------- GLB YÜKLEYİCİ ----------
+    const loader = new GLTFLoader();
+
+    const clock = new THREE.Clock();
+    const floatables = [];
+
+    function addFloatyObject(obj, radius = 1, speed = 1){
+      floatables.push({obj, radius, speed, t:Math.random()*Math.PI*2});
+    }
+
+    function centerAndScale(gltfScene, targetSize=2){
+      const box = new THREE.Box3().setFromObject(gltfScene);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const scale = targetSize / maxDim;
+      gltfScene.scale.setScalar(scale);
+
+      // tekrar ölç, sonra ortala
+      const box2 = new THREE.Box3().setFromObject(gltfScene);
+      const center = new THREE.Vector3();
+      box2.getCenter(center);
+      gltfScene.position.sub(center);
+
+      // malzemeleri PBR yap
+      gltfScene.traverse(node=>{
+        if(node.isMesh){
+          node.castShadow = true;
+          node.receiveShadow = true;
+          const m = node.material;
+          if(m && !m.isMeshStandardMaterial){
+            node.material = new THREE.MeshStandardMaterial({
+              color: m.color ? m.color.clone() : new THREE.Color(0xffffff),
+              metalness:0.4,
+              roughness:0.25
+            });
+          }
+        }
+      });
+    }
+
+    // ---------- MODELLERİ YÜKLE ----------
+    // ÖNEMLİ: GLB dosyaları index.html ile AYNI klasörde olmalı:
+    // /3dscene/index.html
+    // /3dscene/christmas_ball.glb
+    // /3dscene/christmas_tree_ball.glb
+
+    function loadGLB(url, onLoaded){
+      loader.load(
+        url,
+        gltf => { onLoaded(gltf.scene); },
+        undefined,
+        err  => {
+          console.error('GLB yüklenemedi:', url, err);
+        }
+      );
+    }
+
+    // 1) normal top
+    loadGLB('christmas_ball.glb', (root)=>{
+      centerAndScale(root, 2.0);
+      root.position.set(-2.5, 0.2, 0);
+      scene.add(root);
+      addFloatyObject(root, 0.35, 1.0);
+    });
+
+    // 2) ağaçlı top
+    loadGLB('christmas_tree_ball.glb', (root)=>{
+      centerAndScale(root, 2.0);
+      root.position.set(2.5, -0.1, 0);
+      scene.add(root);
+      addFloatyObject(root, 0.4, 1.4);
+    });
+
+    // Yüklenmezse sahnenin boş kalmaması için basit bir küre:
+    const debugGeo = new THREE.SphereGeometry(0.6, 32, 32);
+    const debugMat = new THREE.MeshStandardMaterial({color:0xff5555, metalness:0.4, roughness:0.35});
+    const debugBall = new THREE.Mesh(debugGeo, debugMat);
+    debugBall.position.set(0, -1, 0);
+    scene.add(debugBall);
+    addFloatyObject(debugBall, 0.25, 0.8);
+
+    // ---------- MOUSE ETKİLEŞİMİ / HAFİF FİZİK ----------
+    const mouse = new THREE.Vector2();
+    let mouseForce = new THREE.Vector2();
+
+    window.addEventListener('pointermove', (e)=>{
+      mouse.x = (e.clientX / window.innerWidth ) * 2 - 1;
+      mouse.y =-(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    function animate(){
+      requestAnimationFrame(animate);
+
+      const dt = clock.getDelta();
+      const t  = clock.elapsedTime;
+
+      controls.update();
+
+      mouseForce.x += (mouse.x - mouseForce.x) * 0.12;
+      mouseForce.y += (mouse.y - mouseForce.y) * 0.12;
+
+      for(const f of floatables){
+        f.t += dt * f.speed;
+        const bob = Math.sin(f.t) * f.radius;
+
+        f.obj.position.y += (bob - f.obj.position.y) * 0.08;
+
+        f.obj.rotation.y += 0.25 * dt;
+        f.obj.rotation.x += 0.12 * dt;
+
+        f.obj.position.x += mouseForce.x * 0.06;
+        f.obj.position.z += mouseForce.y * 0.06;
       }
-    );
-  }
 
-  // GLB dosyalarını yükle
-  // Dosya adları repo kökündekiyle birebir aynı olmalı
-  loadBall('./christmas_ball.glb', -1.8);
-  loadBall('./christmas_tree_ball.glb', 1.8);
-
-  // === Mouse etkileşimi ===
-  let targetRotX = 0, targetRotY = 0;
-  let rotX = 0, rotY = 0;
-
-  window.addEventListener('pointermove', (e) => {
-    const x = (e.clientX / window.innerWidth) * 2 - 1;  // -1..1
-    const y = (e.clientY / window.innerHeight) * 2 - 1;
-
-    targetRotY = x * 0.8;  // yatayda daha fazla dönsün
-    targetRotX = y * 0.5;
-  });
-
-  // Basit "fizik" hareketi
-  let t = 0;
-
-  function animate() {
-    requestAnimationFrame(animate);
-
-    t += 0.01;
-    // Yumuşak easing
-    rotX += (targetRotX - rotX) * 0.06;
-    rotY += (targetRotY - rotY) * 0.06;
-
-    group.rotation.set(rotX, rotY, 0);
-    // Hafif yukarı-aşağı salınım
-    group.position.y = Math.sin(t) * 0.3;
-
-    renderer.render(scene, camera);
-  }
-
-  animate();
-
-  // Resize
-  window.addEventListener('resize', () => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-  });
-</script>
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
 </body>
 </html>
