@@ -15,22 +15,22 @@
 </head>
 <body>
 
-  <!-- THREE core (sürüm: 0.152.2) -->
-  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+  <!-- three.js (eski, garantili sürüm) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
 
-  <!-- GLTFLoader (aynı sürüm, legacy js) -->
-  <script src="https://unpkg.com/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- GLTFLoader: aynı sürüm, global THREE.GLTFLoader tanımlayan klasik js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    // === DEBUG ===
+    // ==== DEBUG ====
     console.log("THREE =", THREE);
     console.log("GLTFLoader class =", THREE.GLTFLoader);
 
-    // === SCENE ===
-    const scene = new THREE.Scene();
+    // ==== SCENE ====
+    var scene = new THREE.Scene();
 
-    // === CAMERA ===
-    const camera = new THREE.PerspectiveCamera(
+    // ==== CAMERA ====
+    var camera = new THREE.PerspectiveCamera(
       50,
       window.innerWidth / window.innerHeight,
       0.1,
@@ -38,31 +38,31 @@
     );
     camera.position.set(0, 1.2, 6);
 
-    // === RENDERER ===
-    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    // ==== RENDERER ====
+    var renderer = new THREE.WebGLRenderer({ antialias:true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
-    // === LIGHTS ===
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    // ==== LIGHTS ====
+    var dirLight = new THREE.DirectionalLight(0xffffff, 2);
     dirLight.position.set(5, 5, 5);
     scene.add(dirLight);
 
-    const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+    var ambLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambLight);
 
-    // === GLTF LOADER ===
-    const loader = new THREE.GLTFLoader();
+    // ==== LOADER ====
+    var loader = new THREE.GLTFLoader();
     console.log("Loader instance =", loader);
 
-    let ballModel = null;
-    let treeModel = null;
+    var ballModel = null;
+    var treeModel = null;
 
     // 1) christmas_ball.glb
     loader.load(
       "christmas_ball.glb",
-      (gltf) => {
+      function (gltf) {
         ballModel = gltf.scene;
         ballModel.position.set(-1.5, 0, 0);
         ballModel.scale.set(1.4, 1.4, 1.4);
@@ -70,13 +70,15 @@
         console.log("Ball loaded OK:", ballModel);
       },
       undefined,
-      (err) => console.error("Ball load ERROR:", err)
+      function (err) {
+        console.error("Ball load ERROR:", err);
+      }
     );
 
     // 2) christmas_tree_ball.glb
     loader.load(
       "christmas_tree_ball.glb",
-      (gltf) => {
+      function (gltf) {
         treeModel = gltf.scene;
         treeModel.position.set(1.5, 0, 0);
         treeModel.scale.set(1.4, 1.4, 1.4);
@@ -84,10 +86,12 @@
         console.log("Tree loaded OK:", treeModel);
       },
       undefined,
-      (err) => console.error("Tree load ERROR:", err)
+      function (err) {
+        console.error("Tree load ERROR:", err);
+      }
     );
 
-    // === ANIMATE ===
+    // ==== ANIMATION LOOP ====
     function animate(){
       requestAnimationFrame(animate);
 
@@ -98,8 +102,8 @@
     }
     animate();
 
-    // === RESIZE ===
-    window.addEventListener("resize", () => {
+    // ==== RESIZE ====
+    window.addEventListener("resize", function () {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
