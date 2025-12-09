@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D Scene – GLB Balls</title>
+  <title>3D Scene – Bouncy GLB Balls</title>
   <style>
     html,body{
       margin:0;
@@ -11,7 +11,7 @@
       overflow:hidden;
       height:100%;
       background:
-        radial-gradient(circle at 50% 0%, #1b3b6b 0%, #02030a 55%, #000000 100%);
+        radial-gradient(circle at 50% 0%, #1e3d72 0%, #050713 55%, #000000 100%);
     }
     canvas{display:block;}
     #hint{
@@ -23,14 +23,14 @@
       font-size:10px;
       letter-spacing:0.18em;
       text-transform:uppercase;
-      color:rgba(255,255,255,0.35);
+      color:rgba(255,255,255,0.4);
       pointer-events:none;
     }
   </style>
 </head>
 <body>
 
-  <div id="hint">MOVE &middot; DRAG &middot; SCROLL</div>
+  <div id="hint">MOVE MOUSE · DRAG · SCROLL</div>
 
   <!-- three.js (r126, global THREE) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
@@ -38,9 +38,8 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    // ==== SCENE / CAMERA / RENDERER ====
+    // ===== SCENE / CAMERA / RENDERER =====
     var scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x000000, 0.12);
 
     var camera = new THREE.PerspectiveCamera(
       35,
@@ -54,31 +53,30 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.setClearColor(0x000000, 0); // arka planda CSS gradient’i görünsün
+    renderer.setClearColor(0x000000, 0);
     document.body.appendChild(renderer.domElement);
 
-    // ==== LIGHTS ====
-    var ambLight = new THREE.AmbientLight(0xffffff, 0.35);
-    scene.add(ambLight);
+    // ===== LIGHTS (daha düz, uzaklaşınca kararmasın) =====
+    var hemi = new THREE.HemisphereLight(0x88aaff, 0x050506, 0.7);
+    scene.add(hemi);
 
-    var keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    var keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
     keyLight.position.set(6, 8, 10);
     scene.add(keyLight);
 
-    var rimLight = new THREE.PointLight(0x448aff, 1.8, 80);
-    rimLight.position.set(-6, -4, 6);
+    var rimLight = new THREE.PointLight(0x3c7bff, 2.3, 80);
+    rimLight.position.set(-7, -3, 8);
     scene.add(rimLight);
 
-    // ==== GROUP & "PHYSICS" ====
+    // ===== GROUP & “PHYSICS” =====
     var group = new THREE.Group();
     scene.add(group);
 
-    var bodies = []; // { mesh, velocity: THREE.Vector3, floatPhase:number }
-    var bounds = { x: 8.5, y: 5.0, z: 5.0 };
+    var bodies = []; // { mesh, velocity, baseVel }
+    var bounds = { x: 9.0, y: 5.0, z: 5.0 };
 
     var loader = new THREE.GLTFLoader();
 
-    // GLB'den birden fazla kopya üret
     function createBodiesFromGLTF(gltf, count, baseScale, spread) {
       for (var i = 0; i < count; i++) {
         var clone = gltf.scene.clone(true);
@@ -87,7 +85,7 @@
           if (obj.isMesh && obj.material) {
             obj.castShadow = false;
             obj.receiveShadow = false;
-            obj.material.metalness = 0.4;
+            obj.material.metalness = 0.45;
             obj.material.roughness = 0.25;
           }
         });
@@ -103,21 +101,21 @@
 
         group.add(clone);
 
-        var v = new THREE.Vector3(
-          (Math.random() * 2 - 1) * 0.05,
-          (Math.random() * 2 - 1) * 0.05,
-          (Math.random() * 2 - 1) * 0.05
+        var baseVel = new THREE.Vector3(
+          (Math.random() * 2 - 1) * 0.015,
+          (Math.random() * 2 - 1) * 0.015,
+          (Math.random() * 2 - 1) * 0.015
         );
 
         bodies.push({
           mesh: clone,
-          velocity: v,
-          floatPhase: Math.random() * Math.PI * 2
+          velocity: baseVel.clone(),
+          baseVel: baseVel
         });
       }
     }
 
-    // ==== GLB LOADS ====
+    // ===== GLB LOAD =====
     var assetsLoaded = 0;
     var TOTAL_ASSETS = 2;
 
@@ -126,9 +124,9 @@
       function(gltf){
         createBodiesFromGLTF(
           gltf,
-          10,                       // kaç tane kırmızı
-          0.9,                      // ölçek
-          { x: 6, y: 3.5, z: 3 }
+          10,
+          0.9,
+          { x: 5.5, y: 3.0, z: 3.0 }
         );
         assetsLoaded++;
         if (assetsLoaded === TOTAL_ASSETS) start();
@@ -142,9 +140,9 @@
       function(gltf){
         createBodiesFromGLTF(
           gltf,
-          8,                        // kaç tane mavi
+          8,
           1.1,
-          { x: 5, y: 3.0, z: 3 }
+          { x: 5.0, y: 2.8, z: 3.0 }
         );
         assetsLoaded++;
         if (assetsLoaded === TOTAL_ASSETS) start();
@@ -153,14 +151,26 @@
       function(err){ console.error("Tree load ERROR:", err); }
     );
 
-    // ==== MOUSE & SCROLL ====
-    var mouseNorm = new THREE.Vector2(0, 0); // -1..1
+    // ===== MOUSE / SCROLL =====
+    var mouseNorm = new THREE.Vector2(0, 0); // parallax için
     var scrollOffset = 0;
+
+    // impulse için world pozisyonu
+    function mouseToWorld(){
+      // Lusion’daki gibi z≈0 düzlemi etrafında kümeliyoruz
+      return new THREE.Vector3(
+        mouseNorm.x * 6.0,
+        -mouseNorm.y * 4.0,
+        0
+      );
+    }
 
     window.addEventListener("pointermove", function(e){
       var x = (e.clientX / window.innerWidth) * 2 - 1;
       var y = (e.clientY / window.innerHeight) * 2 - 1;
       mouseNorm.set(x, y);
+
+      applyMouseImpulse();
     });
 
     window.addEventListener("wheel", function(e){
@@ -168,7 +178,30 @@
       scrollOffset = Math.max(-2, Math.min(2, scrollOffset));
     }, { passive:true });
 
-    // ==== ANIMATION LOOP ====
+    // ===== MOUSE IMPULSE (hareket edince vurma efekti) =====
+    function applyMouseImpulse(){
+      if (!bodies.length) return;
+
+      var mousePos = mouseToWorld();
+      var radius = 4.0;
+
+      for (var i = 0; i < bodies.length; i++){
+        var b = bodies[i];
+        var m = b.mesh;
+
+        var delta = m.position.clone().sub(mousePos);
+        var dist = delta.length();
+        if (dist === 0 || dist > radius) continue;
+
+        var falloff = 1 - dist / radius;           // yakındakiler daha çok etkilenir
+        delta.normalize();
+
+        var strength = 1.4 * falloff;              // vurma gücü
+        b.velocity.addScaledVector(delta, strength);
+      }
+    }
+
+    // ===== ANIMATION LOOP =====
     var lastTime = performance.now();
     var running = false;
 
@@ -185,7 +218,7 @@
       if (!running) return;
 
       var now = performance.now();
-      var dt = Math.min(0.04, (now - lastTime) / 1000); // saniye
+      var dt = Math.min(0.04, (now - lastTime) / 1000);
       lastTime = now;
 
       updatePhysics(dt);
@@ -195,79 +228,62 @@
     }
 
     function updatePhysics(dt){
-      var mouseForce = 2.0;
-      var damping    = 0.985;
-      var gravity    = new THREE.Vector3(0, -0.09, 0);
+      var damping = 0.985;
+      var centerSpring = 0.35;   // merkeze hafif yay kuvveti
+      var jitter = 0.004;        // random noise
 
       for (var i = 0; i < bodies.length; i++){
         var b = bodies[i];
         var m = b.mesh;
         var v = b.velocity;
 
-        // hafif kendi rotasyonu
-        b.floatPhase += dt;
-        m.rotation.y += 0.4 * dt;
-        m.rotation.x += 0.17 * dt;
+        // hafif kendi etrafında dönsün
+        m.rotation.y += 0.45 * dt;
+        m.rotation.x += 0.18 * dt;
 
-        // yerçekimi
-        v.addScaledVector(gravity, dt);
+        // temel drift (baseVel etrafında)
+        v.addScaledVector(b.baseVel, 0.2);
 
-        // mouse çekimi
-        var targetX = mouseNorm.x * 4;
-        var targetY = -mouseNorm.y * 2.5;
-        var mousePos = new THREE.Vector3(targetX, targetY, 0);
+        // merkeze doğru mini yay (drift edip dağılmasınlar)
+        var toCenter = m.position.clone().multiplyScalar(-1);
+        v.addScaledVector(toCenter, centerSpring * dt);
 
-        var toMouse = mousePos.clone().sub(m.position);
-        var dist = toMouse.length() + 0.001;
-        var strength = (mouseForce / (dist * dist + 1));
-        toMouse.normalize();
-        v.addScaledVector(toMouse, strength * dt);
-
-        // basit birbirini itme
-        for (var j = i + 1; j < bodies.length; j++){
-          var b2 = bodies[j];
-          var m2 = b2.mesh;
-          var delta = m.position.clone().sub(m2.position);
-          var d = delta.length();
-          if (d > 0 && d < 2.0){
-            var push = (2.0 - d) * 0.12;
-            delta.normalize();
-            v.addScaledVector(delta, push * dt);
-            b2.velocity.addScaledVector(delta, -push * dt);
-          }
-        }
+        // küçük random gürültü – organik hareket
+        v.x += (Math.random() - 0.5) * jitter;
+        v.y += (Math.random() - 0.5) * jitter;
+        v.z += (Math.random() - 0.5) * jitter;
 
         // damping
         v.multiplyScalar(damping);
 
-        // konum
-        m.position.addScaledVector(v, dt * 60); // biraz hız çarpanı
+        // pozisyon güncelle
+        m.position.addScaledVector(v, dt * 60);
 
-        // sınırdan sekme
-        if (m.position.x < -bounds.x){ m.position.x = -bounds.x; v.x *= -0.85; }
-        if (m.position.x >  bounds.x){ m.position.x =  bounds.x; v.x *= -0.85; }
-        if (m.position.y < -bounds.y){ m.position.y = -bounds.y; v.y *= -0.85; }
-        if (m.position.y >  bounds.y){ m.position.y =  bounds.y; v.y *= -0.85; }
-        if (m.position.z < -bounds.z){ m.position.z = -bounds.z; v.z *= -0.85; }
-        if (m.position.z >  bounds.z){ m.position.z =  bounds.z; v.z *= -0.85; }
+        // bounds & sekme
+        if (m.position.x < -bounds.x){ m.position.x = -bounds.x; v.x *= -0.9; }
+        if (m.position.x >  bounds.x){ m.position.x =  bounds.x; v.x *= -0.9; }
+        if (m.position.y < -bounds.y){ m.position.y = -bounds.y; v.y *= -0.9; }
+        if (m.position.y >  bounds.y){ m.position.y =  bounds.y; v.y *= -0.9; }
+        if (m.position.z < -bounds.z){ m.position.z = -bounds.z; v.z *= -0.9; }
+        if (m.position.z >  bounds.z){ m.position.z =  bounds.z; v.z *= -0.9; }
       }
     }
 
     function updateCamera(dt){
-      // group'u mouse'a göre eğ
+      // mouse’a göre grup eğimi (parallax)
       var tiltX = mouseNorm.y * 0.35;
       var tiltY = mouseNorm.x * 0.55;
 
       group.rotation.x += (tiltX - group.rotation.x) * 0.06;
       group.rotation.y += (tiltY - group.rotation.y) * 0.06;
 
-      // scroll ile hafif zoom
+      // scroll ile zoom ama ışık/fog değişmediği için kararmıyor
       var targetZ = 18 + scrollOffset * 3;
       camera.position.z += (targetZ - camera.position.z) * 0.06;
       camera.lookAt(0, 0, 0);
     }
 
-    // ==== RESIZE ====
+    // ===== RESIZE =====
     window.addEventListener("resize", function () {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
