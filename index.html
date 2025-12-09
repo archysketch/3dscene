@@ -18,7 +18,7 @@
 </head>
 <body>
 
-  <!-- SADECE THREE -->
+  <!-- SADECE THREE (başka script yok!) -->
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 
   <script>
@@ -38,20 +38,24 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000, 0); // arka planı şeffaf bırak (gradient görünsün)
+    renderer.setClearColor(0x000000, 0); // arka plan transparan kalsın
     document.body.appendChild(renderer.domElement);
 
-    // === IŞIK + KÜP (TEST OBJESİ) ===
+    // === IŞIK + TEST KÜPÜ ===
     const light = new THREE.DirectionalLight(0xffffff, 1);
     light.position.set(3, 4, 5);
     scene.add(light);
 
     const geo = new THREE.BoxGeometry(1, 1, 1);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, metalness: 0.3, roughness: 0.4 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xff4444,
+      metalness: 0.3,
+      roughness: 0.4
+    });
     const cube = new THREE.Mesh(geo, mat);
     scene.add(cube);
 
-    // === EKRAN BOYUTU DEĞİŞİNCE ===
+    // === RESIZE ===
     window.addEventListener('resize', () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
