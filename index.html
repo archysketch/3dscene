@@ -2,113 +2,122 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D Scene – GLB Test</title>
+  <title>3D Scene Test</title>
   <style>
-    body{
-      margin:0;
-      overflow:hidden;
-      background:radial-gradient(circle at center,#10264a,#000000);
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 0%, #152b4e 0%, #020308 60%, #000000 100%);
     }
-    canvas{display:block;}
+    #scene-container {
+      position: fixed;
+      inset: 0;
+    }
+    canvas {
+      display: block;
+    }
   </style>
 </head>
 <body>
+  <div id="scene-container"></div>
 
-  <!-- three.js (eski, garantili sürüm) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
+  <!-- TEK SCRIPT: ES MODULE -->
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
 
-  <!-- GLTFLoader: aynı sürüm, global THREE.GLTFLoader tanımlayan klasik js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
+    console.log('THREE rev', THREE.REVISION);   // konsolda 160 görmelisin
 
-  <script>
-    // ==== DEBUG ====
-    console.log("THREE =", THREE);
-    console.log("GLTFLoader class =", THREE.GLTFLoader);
+    const container = document.getElementById('scene-container');
 
-    // ==== SCENE ====
-    var scene = new THREE.Scene();
+    const scene = new THREE.Scene();
 
-    // ==== CAMERA ====
-    var camera = new THREE.PerspectiveCamera(
-      50,
+    const camera = new THREE.PerspectiveCamera(
+      45,
       window.innerWidth / window.innerHeight,
       0.1,
       100
     );
-    camera.position.set(0, 1.2, 6);
+    camera.position.set(0, 1.2, 4);
 
-    // ==== RENDERER ====
-    var renderer = new THREE.WebGLRenderer({ antialias:true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
-    document.body.appendChild(renderer.domElement);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    container.appendChild(renderer.domElement);
 
-    // ==== LIGHTS ====
-    var dirLight = new THREE.DirectionalLight(0xffffff, 2);
-    dirLight.position.set(5, 5, 5);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x222233, 1.2);
+    hemiLight.position.set(0, 1, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    dirLight.position.set(3, 5, 5);
+    dirLight.castShadow = true;
     scene.add(dirLight);
 
-    var ambLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambLight);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 8;
 
-    // ==== LOADER ====
-    var loader = new THREE.GLTFLoader();
-    console.log("Loader instance =", loader);
-
-    var ballModel = null;
-    var treeModel = null;
+    const loader = new GLTFLoader();
 
     // 1) christmas_ball.glb
     loader.load(
-      "christmas_ball.glb",
-      function (gltf) {
-        ballModel = gltf.scene;
-        ballModel.position.set(-1.5, 0, 0);
-        ballModel.scale.set(1.4, 1.4, 1.4);
-        scene.add(ballModel);
-        console.log("Ball loaded OK:", ballModel);
+      './christmas_ball.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        model.position.set(-0.8, 0, 0);
+        scene.add(model);
       },
       undefined,
-      function (err) {
-        console.error("Ball load ERROR:", err);
+      (err) => {
+        console.error('christmas_ball.glb yüklenemedi:', err);
       }
     );
 
     // 2) christmas_tree_ball.glb
     loader.load(
-      "christmas_tree_ball.glb",
-      function (gltf) {
-        treeModel = gltf.scene;
-        treeModel.position.set(1.5, 0, 0);
-        treeModel.scale.set(1.4, 1.4, 1.4);
-        scene.add(treeModel);
-        console.log("Tree loaded OK:", treeModel);
+      './christmas_tree_ball.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        model.position.set(0.8, 0, 0);
+        scene.add(model);
       },
       undefined,
-      function (err) {
-        console.error("Tree load ERROR:", err);
+      (err) => {
+        console.error('christmas_tree_ball.glb yüklenemedi:', err);
       }
     );
 
-    // ==== ANIMATION LOOP ====
-    function animate(){
+    // Basit zemin (gölge hissi için)
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(5, 64),
+      new THREE.MeshStandardMaterial({ color: 0x05070b, roughness: 1, metalness: 0 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.7;
+    scene.add(ground);
+
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', onResize);
+
+    function animate() {
       requestAnimationFrame(animate);
-
-      if (ballModel)  ballModel.rotation.y += 0.01;
-      if (treeModel)  treeModel.rotation.y -= 0.01;
-
+      controls.update();
       renderer.render(scene, camera);
     }
     animate();
-
-    // ==== RESIZE ====
-    window.addEventListener("resize", function () {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
   </script>
-
 </body>
 </html>
