@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D Scene – Smooth Balls</title>
+  <title>Lusion Style Smooth 3D Balls</title>
+
   <style>
     html,body{
       margin:0;
@@ -28,303 +29,239 @@
     }
   </style>
 </head>
+
 <body>
 
-  <div id="hint">MOVE MOUSE · DRAG · SCROLL</div>
+<div id="hint">MOVE MOUSE · DRAG · SCROLL</div>
 
-  <!-- three.js (r126, global THREE) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
-  <!-- GLTFLoader -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
+<!-- three.js (global THREE) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
+<!-- GLTFLoader -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
 
-  <script>
-    // ===== SCENE / CAMERA / RENDERER =====
-    var scene = new THREE.Scene();
+<script>
+/* -----------------------------------------------------------
+   SCENE / CAMERA / RENDERER
+----------------------------------------------------------- */
+let scene = new THREE.Scene();
 
-    var camera = new THREE.PerspectiveCamera(
-      35,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100
-    );
-    camera.position.set(0, 0, 18);
+let camera = new THREE.PerspectiveCamera(
+  35,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  100
+);
+camera.position.set(0, 0, 18);
 
-    var renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.setClearColor(0x000000, 0);
-    document.body.appendChild(renderer.domElement);
+let renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
 
-    // ===== LIGHTS =====
-    var hemi = new THREE.HemisphereLight(0x88aaff, 0x050506, 0.7);
-    scene.add(hemi);
+/* -----------------------------------------------------------
+   LIGHTS
+----------------------------------------------------------- */
+scene.add(new THREE.HemisphereLight(0x88aaff, 0x050506, 0.7));
 
-    var keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
-    keyLight.position.set(6, 8, 10);
-    scene.add(keyLight);
+let key = new THREE.DirectionalLight(0xffffff, 1.4);
+key.position.set(6, 8, 10);
+scene.add(key);
 
-    var rimLight = new THREE.PointLight(0x3c7bff, 2.3, 80);
-    rimLight.position.set(-7, -3, 8);
-    scene.add(rimLight);
+let rim = new THREE.PointLight(0x3c7bff, 2.3, 80);
+rim.position.set(-7, -3, 8);
+scene.add(rim);
 
-    // ===== GROUP & “PHYSICS” =====
-    var group = new THREE.Group();
-    scene.add(group);
+/* -----------------------------------------------------------
+   GROUP + BODIES
+----------------------------------------------------------- */
+let group = new THREE.Group();
+scene.add(group);
 
-    var bodies = []; // { mesh, velocity, baseVel }
-    var bounds = { x: 9.0, y: 5.0, z: 5.0 };
+let bodies = []; // { mesh, velocity }
 
-    var loader = new THREE.GLTFLoader();
+let loader = new THREE.GLTFLoader();
 
-    function createBodiesFromGLTF(gltf, count, baseScale, spread) {
-      for (var i = 0; i < count; i++) {
-        var clone = gltf.scene.clone(true);
+/* -----------------------------------------------------------
+   GLB → CLONES
+----------------------------------------------------------- */
+function createBodies(gltf, count, baseScale, spread) {
+  for (let i = 0; i < count; i++) {
+    let clone = gltf.scene.clone(true);
 
-        clone.traverse(function(obj){
-          if (obj.isMesh && obj.material) {
-            obj.castShadow = false;
-            obj.receiveShadow = false;
-            obj.material.metalness = 0.45;
-            obj.material.roughness = 0.25;
-          }
-        });
-
-        var s = baseScale * (0.7 + Math.random() * 0.8);
-        clone.scale.set(s, s, s);
-
-        clone.position.set(
-          (Math.random() * 2 - 1) * spread.x,
-          (Math.random() * 2 - 1) * spread.y,
-          (Math.random() * 2 - 1) * spread.z
-        );
-
-        group.add(clone);
-
-        // daha küçük, yumuşak temel hız
-        var baseVel = new THREE.Vector3(
-          (Math.random() * 2 - 1) * 0.006,
-          (Math.random() * 2 - 1) * 0.006,
-          (Math.random() * 2 - 1) * 0.006
-        );
-
-        bodies.push({
-          mesh: clone,
-          velocity: baseVel.clone(),
-          baseVel: baseVel
-        });
+    clone.traverse(obj => {
+      if (obj.isMesh && obj.material) {
+        obj.material.metalness = 0.45;
+        obj.material.roughness = 0.25;
       }
-    }
-
-    // ===== GLB LOAD =====
-    var assetsLoaded = 0;
-    var TOTAL_ASSETS = 2;
-
-    loader.load(
-      "christmas_ball.glb",
-      function(gltf){
-        createBodiesFromGLTF(
-          gltf,
-          10,
-          0.9,
-          { x: 5.5, y: 3.0, z: 3.0 }
-        );
-        assetsLoaded++;
-        if (assetsLoaded === TOTAL_ASSETS) start();
-      },
-      undefined,
-      function(err){ console.error("Ball load ERROR:", err); }
-    );
-
-    loader.load(
-      "christmas_tree_ball.glb",
-      function(gltf){
-        createBodiesFromGLTF(
-          gltf,
-          8,
-          1.1,
-          { x: 5.0, y: 2.8, z: 3.0 }
-        );
-        assetsLoaded++;
-        if (assetsLoaded === TOTAL_ASSETS) start();
-      },
-      undefined,
-      function(err){ console.error("Tree load ERROR:", err); }
-    );
-
-    // ===== MOUSE / SCROLL =====
-    var mouseNorm = new THREE.Vector2(0, 0); // parallax için
-    var scrollOffset = 0;
-
-    function mouseToWorld(){
-      // z≈0 civarında etkilesin
-      return new THREE.Vector3(
-        mouseNorm.x * 6.0,
-        -mouseNorm.y * 4.0,
-        0
-      );
-    }
-
-    window.addEventListener("pointermove", function(e){
-      var x = (e.clientX / window.innerWidth) * 2 - 1;
-      var y = (e.clientY / window.innerHeight) * 2 - 1;
-      mouseNorm.set(x, y);
-
-      applyMouseImpulse();
     });
 
-    window.addEventListener("wheel", function(e){
-      scrollOffset += e.deltaY * 0.0007;
-      scrollOffset = Math.max(-2, Math.min(2, scrollOffset));
-    }, { passive:true });
+    let s = baseScale * (0.7 + Math.random() * 0.8);
+    clone.scale.set(s, s, s);
 
-    // ===== MOUSE IMPULSE (daha yumuşak) =====
-    function applyMouseImpulse(){
-      if (!bodies.length) return;
+    clone.position.set(
+      (Math.random()*2-1)*spread.x,
+      (Math.random()*2-1)*spread.y,
+      (Math.random()*2-1)*spread.z
+    );
 
-      var mousePos = mouseToWorld();
-      var radius = 5.0;
+    group.add(clone);
 
-      for (var i = 0; i < bodies.length; i++){
-        var b = bodies[i];
-        var m = b.mesh;
-
-        var delta = m.position.clone().sub(mousePos);
-        var dist = delta.length();
-        if (dist === 0 || dist > radius) continue;
-
-        var falloff = 1 - dist / radius;   // yakındakiler daha çok
-        delta.normalize();
-
-        // daha düşük kuvvet, kaos azalıyor
-        var strength = 0.6 * falloff;
-        b.velocity.addScaledVector(delta, strength);
-      }
-    }
-
-    // ===== ANIMATION LOOP =====
-    var lastTime = performance.now();
-    var running = false;
-
-    function start(){
-      if (!running){
-        running = true;
-        lastTime = performance.now();
-        animate();
-      }
-    }
-
-    function animate(){
-      requestAnimationFrame(animate);
-      if (!running) return;
-
-      var now = performance.now();
-      var dt = Math.min(0.04, (now - lastTime) / 1000);
-      lastTime = now;
-
-      updatePhysics(dt);
-      updateCamera(dt);
-
-      renderer.render(scene, camera);
-    }
-
-    function updatePhysics(dt){
-      // parametreler → daha smooth & homojen
-      var damping = 0.93;
-      var centerShellRadius = 4.5;  // hepsi bu kabuğun etrafında
-      var shellStrength = 0.25;
-      var jitter = 0.0015;
-      var repelStrength = 0.06;
-      var minDist = 2.1;            // pseudo-collision mesafesi
-      var maxSpeed = 0.25;
-
-      // --- pairwise repulsion (basit çarpışma) ---
-      for (var i = 0; i < bodies.length; i++){
-        for (var j = i + 1; j < bodies.length; j++){
-          var bi = bodies[i];
-          var bj = bodies[j];
-          var pi = bi.mesh.position;
-          var pj = bj.mesh.position;
-
-          var diff = pi.clone().sub(pj);
-          var dist = diff.length();
-          if (!dist || dist > minDist) continue;
-
-          diff.normalize();
-          var push = (minDist - dist) * repelStrength;
-
-          bi.velocity.addScaledVector(diff,  push);
-          bj.velocity.addScaledVector(diff, -push);
-        }
-      }
-
-      // --- tek tek gövdeler ---
-      for (var k = 0; k < bodies.length; k++){
-        var b = bodies[k];
-        var m = b.mesh;
-        var v = b.velocity;
-
-        // hafif dönüş
-        m.rotation.y += 0.30 * dt;
-        m.rotation.x += 0.15 * dt;
-
-        // base drift
-        v.addScaledVector(b.baseVel, 0.25);
-
-        // kabuk yay kuvveti (tam merkeze değil; bir radius etrafında)
-        var radial = m.position.length();
-        if (radial > 0){
-          var dir = m.position.clone().normalize();
-          var diffR = radial - centerShellRadius; // pozitifse dışarıda, negatifse içeride
-          v.addScaledVector(dir, -diffR * shellStrength * dt);
-        }
-
-        // küçük random noise
-        v.x += (Math.random() - 0.5) * jitter;
-        v.y += (Math.random() - 0.5) * jitter;
-        v.z += (Math.random() - 0.5) * jitter;
-
-        // damping
-        v.multiplyScalar(damping);
-
-        // hız clamp
-        if (v.lengthSq() > maxSpeed * maxSpeed){
-          v.setLength(maxSpeed);
-        }
-
-        // pozisyon
-        m.position.addScaledVector(v, dt * 60);
-
-        // bounds & sekme
-        if (m.position.x < -bounds.x){ m.position.x = -bounds.x; v.x *= -0.9; }
-        if (m.position.x >  bounds.x){ m.position.x =  bounds.x; v.x *= -0.9; }
-        if (m.position.y < -bounds.y){ m.position.y = -bounds.y; v.y *= -0.9; }
-        if (m.position.y >  bounds.y){ m.position.y =  bounds.y; v.y *= -0.9; }
-        if (m.position.z < -bounds.z){ m.position.z = -bounds.z; v.z *= -0.9; }
-        if (m.position.z >  bounds.z){ m.position.z =  bounds.z; v.z *= -0.9; }
-      }
-    }
-
-    function updateCamera(dt){
-      // mouse’a göre parallax
-      var tiltX = mouseNorm.y * 0.35;
-      var tiltY = mouseNorm.x * 0.55;
-
-      group.rotation.x += (tiltX - group.rotation.x) * 0.06;
-      group.rotation.y += (tiltY - group.rotation.y) * 0.06;
-
-      // scroll ile yumuşak zoom
-      var targetZ = 18 + scrollOffset * 3;
-      camera.position.z += (targetZ - camera.position.z) * 0.06;
-      camera.lookAt(0, 0, 0);
-    }
-
-    // ===== RESIZE =====
-    window.addEventListener("resize", function () {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+    bodies.push({
+      mesh: clone,
+      velocity: new THREE.Vector3(
+        (Math.random()*2-1)*0.01,
+        (Math.random()*2-1)*0.01,
+        (Math.random()*2-1)*0.01
+      )
     });
-  </script>
+  }
+}
+
+/* -----------------------------------------------------------
+   LOAD MODELS
+----------------------------------------------------------- */
+let loaded = 0;
+const TOTAL = 2;
+
+loader.load("christmas_ball.glb", gltf => {
+  createBodies(gltf, 10, 0.9, {x:5,y:3,z:3});
+  if (++loaded === TOTAL) start();
+});
+
+loader.load("christmas_tree_ball.glb", gltf => {
+  createBodies(gltf, 8, 1.1, {x:5,y:3,z:3});
+  if (++loaded === TOTAL) start();
+});
+
+/* -----------------------------------------------------------
+   MOUSE + SCROLL
+----------------------------------------------------------- */
+let mouseNorm = new THREE.Vector2(0,0);
+let scrollOffset = 0;
+
+window.addEventListener("pointermove", e => {
+  mouseNorm.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseNorm.y = (e.clientY / window.innerHeight) * 2 - 1;
+});
+
+window.addEventListener("wheel", e => {
+  scrollOffset += e.deltaY * 0.0007;
+  scrollOffset = Math.max(-2, Math.min(2, scrollOffset));
+}, { passive:true });
+
+/* -----------------------------------------------------------
+   LUSION STYLE PHYSICS ENGINE
+----------------------------------------------------------- */
+function applyLusionPhysics(dt)
+{
+  let R = 5.0;                    // sphere radius
+  let repelRadius = 2.4;         // object-object repel area
+  let mouseRadius = 3.0;         // mouse influence
+  let damping = 0.92;
+  let centerForce = 0.15;
+  let repelForce = 0.035;
+  let mouseForce = 0.18;
+
+  let mouseWorld = new THREE.Vector3(
+    mouseNorm.x * 4.5,
+    -mouseNorm.y * 3.0,
+    0
+  );
+
+  // soft neighbor repel
+  for (let i=0;i<bodies.length;i++){
+    for (let j=i+1;j<bodies.length;j++){
+      let bi=bodies[i], bj=bodies[j];
+      let d = bi.mesh.position.clone().sub(bj.mesh.position);
+      let dist = d.length();
+      if(dist>0 && dist<repelRadius){
+        let f = (repelRadius - dist) * repelForce;
+        d.normalize();
+        bi.velocity.addScaledVector(d,  f);
+        bj.velocity.addScaledVector(d, -f);
+      }
+    }
+  }
+
+  // each body
+  for (let b of bodies){
+    let p=b.mesh.position, v=b.velocity;
+
+    // spherical shell constraint
+    let radial = p.length();
+    if(radial>0){
+      let diff = radial - R;
+      let n = p.clone().normalize();
+      v.addScaledVector(n, -diff * centerForce);
+    }
+
+    // mouse repel
+    let mvec = p.clone().sub(mouseWorld);
+    let md = mvec.length();
+    if (md > 0 && md < mouseRadius){
+      let f = (mouseRadius - md) * mouseForce;
+      mvec.normalize();
+      v.addScaledVector(mvec, f);
+    }
+
+    // tiny noise
+    v.x += (Math.random()-0.5)*0.001;
+    v.y += (Math.random()-0.5)*0.001;
+    v.z += (Math.random()-0.5)*0.001;
+
+    // damping
+    v.multiplyScalar(damping);
+
+    // position
+    p.addScaledVector(v, dt*60);
+
+    // smooth rotation
+    b.mesh.rotation.x += 0.25*dt;
+    b.mesh.rotation.y += 0.35*dt;
+  }
+}
+
+/* -----------------------------------------------------------
+   ANIMATION LOOP
+----------------------------------------------------------- */
+let last = performance.now();
+let running = false;
+
+function start(){
+  running = true;
+  last = performance.now();
+  animate();
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  if (!running) return;
+
+  let now = performance.now();
+  let dt = Math.min(0.04, (now-last)/1000);
+  last = now;
+
+  applyLusionPhysics(dt);
+
+  // smooth zoom
+  let targetZ = 18 + scrollOffset * 3;
+  camera.position.z += (targetZ - camera.position.z)*0.06;
+
+  camera.lookAt(0,0,0);
+  renderer.render(scene,camera);
+}
+
+/* -----------------------------------------------------------
+   RESIZE
+----------------------------------------------------------- */
+window.addEventListener("resize",()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
 </body>
 </html>
