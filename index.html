@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Physics Prototype</title>
+<title>Lusion Smooth Physics v2</title>
 <style>
     html, body {
         margin: 0; padding: 0;
@@ -23,7 +23,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
     55, innerWidth / innerHeight, 0.1, 100
 );
-camera.position.set(0, 0, 22);
+camera.position.set(0, 0, 25);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -33,7 +33,7 @@ document.body.appendChild(renderer.domElement);
 // ------------------------------------
 // LIGHT
 // ------------------------------------
-const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8);
+const hemi = new THREE.HemisphereLight(0x4d6fff, 0x000000, 1);
 scene.add(hemi);
 
 // ------------------------------------
@@ -42,12 +42,14 @@ scene.add(hemi);
 const COUNT = 40;
 const positions = [];
 const velocities = [];
+const drift = []; // idle movement
+const SCALE = 1.45; // TOPLARI BÜYÜTEN DEĞER
 
-const geometry = new THREE.SphereGeometry(1, 32, 32);
+const geometry = new THREE.SphereGeometry(1 * SCALE, 32, 32);
 const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.3,
-    metalness: 0.2
+    color: 0x3d56ff,
+    roughness: 0.25,
+    metalness: 0.15
 });
 
 const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
@@ -55,18 +57,27 @@ scene.add(instanced);
 
 const temp = new THREE.Object3D();
 
-// RANDOM START POSITIONS
+// ------------------------------------
+// INIT POSITIONS
+// ------------------------------------
 for (let i = 0; i < COUNT; i++) {
     positions[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 9,
         (Math.random() - 0.5) * 6,
         (Math.random() - 0.5) * 6
     );
 
     velocities[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05
+        (Math.random() - 0.5) * 0.03,
+        (Math.random() - 0.5) * 0.03,
+        (Math.random() - 0.5) * 0.03
+    );
+
+    // idle drift noise
+    drift[i] = new THREE.Vector3(
+        Math.random() * 0.005,
+        Math.random() * 0.005,
+        Math.random() * 0.005
     );
 }
 
@@ -74,21 +85,25 @@ for (let i = 0; i < COUNT; i++) {
 // PHYSICS LOOP
 // ------------------------------------
 function updatePhysics() {
-    const centerForce = 0.002;  
-    const damping = 0.96;       
-    const repelRadius = 2.2;
-    const repelStrength = 0.015;
+    const centerForce = 0.0014;
+    const damping = 0.94;           // daha smooth yavaşlama
+    const repelRadius = 2.8;        // çarpışma mesafesi artırıldı
+    const repelStrength = 0.02;
 
     for (let i = 0; i < COUNT; i++) {
 
-        // SOFT CENTERING
+        // Idle drift – sürekli minik hareket
+        positions[i].x += Math.sin(performance.now() * 0.00015 + i) * drift[i].x;
+        positions[i].y += Math.cos(performance.now() * 0.00012 + i) * drift[i].y;
+        positions[i].z += Math.sin(performance.now() * 0.0001 + i) * drift[i].z;
+
+        // Soft center pull
         velocities[i].x -= positions[i].x * centerForce;
         velocities[i].y -= positions[i].y * centerForce;
         velocities[i].z -= positions[i].z * centerForce;
 
-        // PAIRWISE REPEL (NO OVERLAP)
+        // Pairwise repel
         for (let j = i + 1; j < COUNT; j++) {
-
             const diff = positions[i].clone().sub(positions[j]);
             const dist = diff.length();
 
@@ -101,10 +116,10 @@ function updatePhysics() {
             }
         }
 
-        // VELOCITY DAMP
+        // Damping
         velocities[i].multiplyScalar(damping);
 
-        // APPLY VELOCITY
+        // Apply velocity
         positions[i].add(velocities[i]);
     }
 }
@@ -116,18 +131,18 @@ let mouse = new THREE.Vector3();
 window.addEventListener("pointermove", (e)=>{
     const x = (e.clientX / innerWidth) * 2 - 1;
     const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 8, y * 5, 0);
+    mouse.set(x * 9, y * 5, 0);
 });
 
 function applyMouseForce() {
-    const force = 0.04;
+    const force = 0.03;
 
     for (let i = 0; i < COUNT; i++) {
         const diff = positions[i].clone().sub(mouse);
         const dist = diff.length();
 
-        if (dist < 4) {
-            const push = (4 - dist) * force;
+        if (dist < 5) {
+            const push = (5 - dist) * force;
             diff.normalize();
             velocities[i].add(diff.multiplyScalar(push));
         }
