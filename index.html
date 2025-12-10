@@ -1,171 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Lusion Style Motion</title>
+<meta charset="UTF-8" />
+<title>Lusion Style GPU Balls</title>
 <style>
-    html,body{
-        margin:0; padding:0; overflow:hidden;
-        background: radial-gradient(circle at 50% 0%, #1e3d72 0%, #050713 55%, #000000 100%);
+    html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #02040a;
     }
-    canvas{display:block;}
-    #hint{
-        position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
-        color:#fff4; font-size:10px; letter-spacing:3px; font-family:sans-serif;
-    }
+    canvas { display: block; }
 </style>
 </head>
 <body>
 
-<div id="hint">MOVE MOUSE · DRAG</div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-/* =============================
-   SCENE SETUP
-============================= */
+// ------------------------
+// SCENE + CAMERA
+// ------------------------
 const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x02040a, 20, 60);
 
-const camera = new THREE.PerspectiveCamera(35, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0,0,18);
+const camera = new THREE.PerspectiveCamera(
+    55,
+    innerWidth / innerHeight,
+    0.1,
+    100
+);
+camera.position.set(0, 0, 22);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
+// ------------------------
+// RENDERER
+// ------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-/* LIGHTS */
-scene.add(new THREE.HemisphereLight(0x99bbff,0x050505,0.9));
-let dir = new THREE.DirectionalLight(0xffffff,1.4);
-dir.position.set(4,6,10);
+// ------------------------
+// LIGHTING (soft lusion look)
+// ------------------------
+const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.6);
+scene.add(hemi);
+
+const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+dir.position.set(4, 6, 8);
 scene.add(dir);
 
-/* =============================
-   PARAMETERS
-============================= */
-const COUNT1 = 10;
-const COUNT2 = 8;
-const RADIUS = 6;              // hacim yarıçapı
-const AVOID_DIST = 1.8;        // iç içe girmeyi engelle
-const AVOID_FORCE = 0.06;
-const TARGET_SHIFT = 0.008;    // hedef değişme hızı
-const EASE = 0.08;             // easing kuvveti
-const ROT = 0.01;
+// ------------------------
+// BALL INSTANCING
+// ------------------------
+const COUNT = 50;
+const geometry = new THREE.SphereGeometry(1, 32, 32);
 
-/* =============================
-   OBJECT STORAGE
-============================= */
-let balls = [];
-let mouse = new THREE.Vector3();
+// CUSTOM SHADER MATERIAL (Lusion-style)
+const material = new THREE.ShaderMaterial({
+    uniforms: {
+        u_time: { value: 0 },
+        u_mouse: { value: new THREE.Vector3(0,0,0) }
+    },
+    vertexShader: `
+        uniform float u_time;
+        uniform vec3 u_mouse;
+        
+        attribute float a_id;
+        
+        varying vec3 vNormal;
+        varying float v_id;
 
-/* =============================
-   LOAD MODELS
-============================= */
-const loader = new THREE.GLTFLoader();
-let loadCount = 0;
-
-loader.load("christmas_ball.glb", gltf=>{
-    makeObjects(gltf, COUNT1);
-});
-loader.load("christmas_tree_ball.glb", gltf=>{
-    makeObjects(gltf, COUNT2);
-});
-
-function makeObjects(gltf, count){
-    for(let i=0;i<count;i++){
-        let mesh = gltf.scene.clone(true);
-
-        mesh.scale.setScalar(0.8 + Math.random()*0.6);
-
-        scene.add(mesh);
-
-        balls.push({
-            mesh,
-            target: randomPos(),
-            velocity: new THREE.Vector3()
-        });
-    }
-    if(++loadCount === 2) animate();
-}
-
-/* =============================
-   HELPERS
-============================= */
-function randomPos(){
-    return new THREE.Vector3(
-        (Math.random()*2-1) * RADIUS,
-        (Math.random()*2-1) * (RADIUS*0.6),
-        (Math.random()*2-1) * (RADIUS*0.6)
-    );
-}
-
-/* =============================
-   MOUSE INTERACTION
-============================= */
-addEventListener("pointermove", e=>{
-    mouse.x = (e.clientX / innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.z = 0;
-});
-
-/* =============================
-   ANIMATION LOOP
-============================= */
-function animate(){
-    requestAnimationFrame(animate);
-
-    balls.forEach(b=>{
-        let m = b.mesh;
-
-        // hedef pozisyonu zamanla değiştir (lusion tarzı)
-        b.target.x += (Math.random()-0.5) * TARGET_SHIFT;
-        b.target.y += (Math.random()-0.5) * TARGET_SHIFT;
-        b.target.z += (Math.random()-0.5) * TARGET_SHIFT;
-
-        // easing ile hedefe yaklaşma
-        let toTarget = b.target.clone().sub(m.position).multiplyScalar(EASE);
-        b.velocity.add(toTarget);
-
-        // mouse etkisi
-        let mp = m.position.clone().sub(mouseWorld());
-        let d = mp.length();
-        if(d < 3){
-            mp.normalize();
-            b.velocity.add(mp.multiplyScalar((3-d)*0.04));
+        // SIMPLE NOISE
+        float noise(vec3 p){
+            return fract(sin(dot(p.xyz ,vec3(12.9898,78.233,45.164))) * 43758.5453);
         }
 
-        // iç içe girmeyi engelle — repulsion
-        balls.forEach(other=>{
-            if(other === b) return;
-            let diff = m.position.clone().sub(other.mesh.position);
-            let dist = diff.length();
-            if(dist < AVOID_DIST && dist > 0){
-                diff.normalize();
-                b.velocity.add(diff.multiplyScalar(AVOID_FORCE));
+        void main() {
+            vNormal = normal;
+            v_id = a_id;
+
+            float id = a_id;
+
+            // BASE POSITION FROM INSTANCE MATRIX
+            vec3 pos = position;
+
+            // SOFT FLOATING MOTION
+            float t = u_time * 0.4 + id * 10.0;
+            pos.x += sin(t * 0.7) * 0.4;
+            pos.y += sin(t * 1.4) * 0.4;
+            pos.z += sin(t * 1.0) * 0.4;
+
+            // CENTER SPRING (keeps them grouped like lusion)
+            vec3 inst = vec3(
+                sin(id * 12.0) * 6.0,
+                sin(id * 7.0) * 3.0,
+                sin(id * 5.0) * 4.0
+            );
+            pos += inst;
+
+            // MOUSE REPEL (soft)
+            float d = distance(pos, u_mouse);
+            if (d < 3.0) {
+                pos += normalize(pos - u_mouse) * (3.0 - d);
             }
-        });
 
-        // pozisyon güncelle
-        m.position.add(b.velocity);
-        b.velocity.multiplyScalar(0.94);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+    `,
+    fragmentShader: `
+        varying vec3 vNormal;
+        varying float v_id;
 
-        // yumuşak dönüş
-        m.rotation.x += ROT;
-        m.rotation.y += ROT*1.5;
-    });
+        void main() {
+            // soft shading
+            float d = dot(normalize(vNormal), vec3(0.2,0.6,1.0));
+            d = pow(d * 0.7 + 0.3, 2.0);
 
-    renderer.render(scene,camera);
+            // soft fresnel
+            float f = pow(1.0 - abs(dot(vNormal, vec3(0.0,0.0,1.0))), 2.5);
+
+            vec3 color = mix(vec3(0.12,0.35,1.0), vec3(1.0,0.2,0.2), fract(v_id * 12.0));
+
+            gl_FragColor = vec4(color * d + f * 0.5, 1.0);
+        }
+    `
+});
+
+// CREATE INSTANCED MESH
+const mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+
+const temp = new THREE.Object3D();
+const idArray = new Float32Array(COUNT);
+
+for (let i = 0; i < COUNT; i++) {
+    temp.position.set(
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 8
+    );
+    temp.updateMatrix();
+    mesh.setMatrixAt(i, temp.matrix);
+    idArray[i] = Math.random() * 1000;
 }
 
-function mouseWorld(){
-    return new THREE.Vector3(mouse.x*4, mouse.y*3, 0);
-}
+// custom attribute → shader knows each id
+mesh.geometry.setAttribute(
+    "a_id",
+    new THREE.InstancedBufferAttribute(idArray, 1)
+);
 
-/* RESIZE */
-addEventListener("resize",()=>{
-    camera.aspect = innerWidth/innerHeight;
+scene.add(mesh);
+
+// ------------------------
+// MOUSE INTERACTION
+// ------------------------
+let mouse = new THREE.Vector3();
+
+window.addEventListener("pointermove", (e)=>{
+    const x = (e.clientX / innerWidth) * 2 - 1;
+    const y = -(e.clientY / innerHeight) * 2 + 1;
+    mouse.set(x * 8, y * 5, 0);
+});
+
+// ------------------------
+// ANIMATION LOOP
+// ------------------------
+function animate(t){
+    material.uniforms.u_time.value = t * 0.001;
+    material.uniforms.u_mouse.value = mouse;
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// ------------------------
+// RESIZE
+// ------------------------
+addEventListener("resize", ()=>{
+    camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
 });
