@@ -2,12 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Physics v6 (Stable)</title>
-
+<title>Lusion Physics v7 (Stable Working Edition)</title>
 <style>
     html, body {
-        margin: 0;
-        padding: 0;
+        margin: 0; padding: 0;
         overflow: hidden;
         background: #000;
     }
@@ -18,48 +16,43 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-// ------------------------------------
+// -----------------------------------------------------
 // SCENE & CAMERA
-// ------------------------------------
+// -----------------------------------------------------
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
     55, innerWidth / innerHeight, 0.1, 100
 );
-camera.position.set(0, 0, 28);
+camera.position.set(0, 0, 26);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ------------------------------------
+// -----------------------------------------------------
 // LIGHT
-// ------------------------------------
-const hemi = new THREE.HemisphereLight(0x4880ff, 0x000000, 1.0);
+// -----------------------------------------------------
+const hemi = new THREE.HemisphereLight(0x4a75ff, 0x000000, 0.9);
 scene.add(hemi);
 
-// ------------------------------------
-// PARAMETRES
-// ------------------------------------
+// -----------------------------------------------------
+// BALL INSTANCING
+// -----------------------------------------------------
 const COUNT = 40;
-const BALL_SIZE = 2.0;        // ★ toplar büyütüldü
-const COLLISION_DIST = BALL_SIZE * 2.1;
-const CENTER_FORCE = 0.0013;
-const DAMPING = 0.965;
+const RADIUS = 1.8;                         // ★ toplar büyütüldü
+const COLLISION_DIST = RADIUS * 2.1;        // ★ iç içe geçme engellendi
 
-// ------------------------------------
-// INSTANCED BALLS
-// ------------------------------------
 const positions = [];
 const velocities = [];
 const drift = [];
 const driftSpeed = [];
 
-const geometry = new THREE.SphereGeometry(BALL_SIZE, 32, 32);
+const geometry = new THREE.SphereGeometry(RADIUS, 32, 32);
 const material = new THREE.MeshStandardMaterial({
-    color: 0x5f76ff,
-    roughness: 0.3,
-    metalness: 0.2,
+    color: 0xffffff,
+    roughness: 0.35,
+    metalness: 0.15
 });
 
 const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
@@ -67,50 +60,59 @@ scene.add(instanced);
 
 const temp = new THREE.Object3D();
 
-// ------------------------------------
-// INITIAL POSITIONS
-// ------------------------------------
+// -----------------------------------------------------
+// INITIAL POSITION SETUP
+// -----------------------------------------------------
 for (let i = 0; i < COUNT; i++) {
 
     positions[i] = new THREE.Vector3(
         (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 7,
+        (Math.random() - 0.5) * 6,
         (Math.random() - 0.5) * 6
     );
 
     velocities[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.025,
-        (Math.random() - 0.5) * 0.025,
-        (Math.random() - 0.5) * 0.025
+        (Math.random() - 0.5) * 0.03,
+        (Math.random() - 0.5) * 0.03,
+        (Math.random() - 0.5) * 0.03
     );
 
-    // ★ ORGANIC DRIFT (Lusion vibe)
+    // ★ Lusion benzeri bağımsız idle drift
     drift[i] = new THREE.Vector3(
         Math.random() * 5,
         Math.random() * 5,
         Math.random() * 5
     );
-    driftSpeed[i] = 0.0015 + Math.random() * 0.0025;
+
+    driftSpeed[i] = 0.0015 + Math.random() * 0.002;
 }
 
-// ------------------------------------
+// -----------------------------------------------------
 // PHYSICS LOOP
-// ------------------------------------
+// -----------------------------------------------------
 function updatePhysics(time) {
 
+    const centerForce = 0.0012;
+    const damping = 0.965;
     const repelStrength = 0.03;
 
     for (let i = 0; i < COUNT; i++) {
 
-        // ★ ORGANIC MICRO-DRIFT
+        // ---------------------------------------------------------
+        // ★ LUSION MICRO DRIFT
+        // ---------------------------------------------------------
         positions[i].x += Math.sin(time * driftSpeed[i] + drift[i].x) * 0.015;
         positions[i].y += Math.cos(time * driftSpeed[i] + drift[i].y) * 0.015;
         positions[i].z += Math.sin(time * driftSpeed[i] + drift[i].z) * 0.015;
 
-        // SOFT CENTER ATTRACT
-        velocities[i].addScaledVector(positions[i], -CENTER_FORCE);
+        // ★ CENTER SOFT PULL
+        velocities[i].x -= positions[i].x * centerForce;
+        velocities[i].y -= positions[i].y * centerForce;
+        velocities[i].z -= positions[i].z * centerForce;
 
-        // COLLISIONS
+        // ---------------------------------------------------------
+        // ★ COLLISION AVOIDANCE (soft-body style)
+        // ---------------------------------------------------------
         for (let j = i + 1; j < COUNT; j++) {
 
             const diff = positions[i].clone().sub(positions[j]);
@@ -119,36 +121,34 @@ function updatePhysics(time) {
             if (dist < COLLISION_DIST && dist > 0) {
 
                 const push = (COLLISION_DIST - dist) * repelStrength;
+
                 diff.normalize();
 
-                velocities[i].addScaledVector(diff,  push);
-                velocities[j].addScaledVector(diff, -push);
+                velocities[i].add(diff.clone().multiplyScalar(push));
+                velocities[j].add(diff.clone().multiplyScalar(-push));
             }
         }
 
-        // DAMPING
-        velocities[i].multiplyScalar(DAMPING);
-
-        // APPLY VELOCITY
+        velocities[i].multiplyScalar(damping);
         positions[i].add(velocities[i]);
     }
 }
 
-// ------------------------------------
+// -----------------------------------------------------
 // MOUSE FORCE
-// ------------------------------------
+// -----------------------------------------------------
 let mouse = new THREE.Vector3();
 
 window.addEventListener("pointermove", (e)=>{
     const x = (e.clientX / innerWidth) * 2 - 1;
     const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 12, y * 8, 0);
+    mouse.set(x * 10, y * 6, 0);
 });
 
 function applyMouseForce() {
 
-    const radius = 7;
-    const force = 0.055; // ★ daha "vurmalı" oldu
+    const radius = 6;
+    const force = 0.055;     // ★ vurma etkisi daha iyi
 
     for (let i = 0; i < COUNT; i++) {
 
@@ -157,26 +157,37 @@ function applyMouseForce() {
 
         if (dist < radius) {
             diff.normalize();
-            velocities[i].addScaledVector(diff, (radius - dist) * force);
+            velocities[i].add(diff.multiplyScalar((radius - dist) * force));
         }
     }
 }
 
-// ------------------------------------
+// -----------------------------------------------------
+// CAMERA MICRO WOBBLE (çok hafif)
+// -----------------------------------------------------
+function updateCamera(time) {
+    camera.position.x = Math.sin(time * 0.15) * 0.25;
+    camera.position.y = Math.cos(time * 0.13) * 0.20;
+    camera.lookAt(0, 0, 0);
+}
+
+// -----------------------------------------------------
 // RENDER LOOP
-// ------------------------------------
+// -----------------------------------------------------
 function animate(t) {
 
     const time = t * 0.001;
 
     applyMouseForce();
     updatePhysics(time);
+    updateCamera(time);
 
     for (let i = 0; i < COUNT; i++) {
         temp.position.copy(positions[i]);
         temp.updateMatrix();
         instanced.setMatrixAt(i, temp.matrix);
     }
+
     instanced.instanceMatrix.needsUpdate = true;
 
     renderer.render(scene, camera);
@@ -184,7 +195,7 @@ function animate(t) {
 }
 animate();
 
-// ------------------------------------
+// -----------------------------------------------------
 window.addEventListener("resize", ()=>{
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
