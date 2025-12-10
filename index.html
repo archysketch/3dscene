@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Physics Prototype</title>
+<title>Lusion Physics Refined</title>
 <style>
     html, body {
         margin: 0; padding: 0;
@@ -23,7 +23,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
     55, innerWidth / innerHeight, 0.1, 100
 );
-camera.position.set(0, 0, 22);
+camera.position.set(0, 0, 26);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -33,21 +33,24 @@ document.body.appendChild(renderer.domElement);
 // ------------------------------------
 // LIGHT
 // ------------------------------------
-const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8);
+const hemi = new THREE.HemisphereLight(0x4060ff, 0x000000, 0.85);
 scene.add(hemi);
 
 // ------------------------------------
 // BALL INSTANCING
 // ------------------------------------
 const COUNT = 40;
+
 const positions = [];
 const velocities = [];
+const drift = []; // micro-drift
+const driftSpeed = [];
 
-const geometry = new THREE.SphereGeometry(1, 32, 32);
+const geometry = new THREE.SphereGeometry(2, 48, 48); // ★ TOPLAR 2× BÜYÜDÜ
 const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.3,
-    metalness: 0.2
+    color: 0x4d6dff,
+    roughness: 0.25,
+    metalness: 0.1
 });
 
 const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
@@ -57,51 +60,75 @@ const temp = new THREE.Object3D();
 
 // RANDOM START POSITIONS
 for (let i = 0; i < COUNT; i++) {
+
     positions[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 6
+        (Math.random() - 0.5) * 8,
+        (Math.random() - 0.5) * 5,
+        (Math.random() - 0.5) * 5
     );
 
     velocities[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05
+        (Math.random() - 0.5) * 0.02,
+        (Math.random() - 0.5) * 0.02,
+        (Math.random() - 0.5) * 0.02
     );
+
+    // LUSION MICRO-DRIFT
+    drift[i] = new THREE.Vector3(
+        Math.random() * 6,
+        Math.random() * 6,
+        Math.random() * 6
+    );
+    driftSpeed[i] = 0.003 + Math.random() * 0.004;
 }
 
 // ------------------------------------
 // PHYSICS LOOP
 // ------------------------------------
-function updatePhysics() {
-    const centerForce = 0.002;  
-    const damping = 0.96;       
-    const repelRadius = 2.2;
-    const repelStrength = 0.015;
+function updatePhysics(time) {
+
+    const centerForce = 0.0013;
+    const damping = 0.97;
+
+    const repelRadius = 4.0;         // ★ top büyük → çarpışma alanı büyüdü
+    const repelStrength = 0.02;
+
+    const softNeighborPull = 0.004;  // Lusion cohesive movement
 
     for (let i = 0; i < COUNT; i++) {
 
-        // SOFT CENTERING
-        velocities[i].x -= positions[i].x * centerForce;
-        velocities[i].y -= positions[i].y * centerForce;
-        velocities[i].z -= positions[i].z * centerForce;
+        // MICRO DRIFT (Lusion efektinin sırrı!)
+        positions[i].x += Math.sin(time * driftSpeed[i] + drift[i].x) * 0.015;
+        positions[i].y += Math.cos(time * driftSpeed[i] + drift[i].y) * 0.015;
+        positions[i].z += Math.sin(time * driftSpeed[i] + drift[i].z) * 0.015;
 
-        // PAIRWISE REPEL (NO OVERLAP)
+        // SOFT CENTERING
+        velocities[i].addScaledVector(positions[i], -centerForce);
+
+        // PAIRWISE "SOFT BODY" REPEL
         for (let j = i + 1; j < COUNT; j++) {
 
             const diff = positions[i].clone().sub(positions[j]);
-            const dist = diff.length();
+            let dist = diff.length();
 
             if (dist < repelRadius && dist > 0) {
+
+                // ÇOK DAHA YUMUŞAK + HİDRODİNAMİK REPEL
                 const push = (repelRadius - dist) * repelStrength;
+
                 diff.normalize();
 
-                velocities[i].add(diff.clone().multiplyScalar(push));
-                velocities[j].add(diff.clone().multiplyScalar(-push));
+                velocities[i].addScaledVector(diff, push);
+                velocities[j].addScaledVector(diff, -push);
+
+                // KOMŞULAR ARASINDA YUMUŞAK COHESION
+                const mid = positions[j].clone().sub(positions[i]).multiplyScalar(softNeighborPull);
+                velocities[i].add(mid);
+                velocities[j].sub(mid);
             }
         }
 
-        // VELOCITY DAMP
+        // DAMPING
         velocities[i].multiplyScalar(damping);
 
         // APPLY VELOCITY
@@ -113,23 +140,29 @@ function updatePhysics() {
 // MOUSE FORCE
 // ------------------------------------
 let mouse = new THREE.Vector3();
+
 window.addEventListener("pointermove", (e)=>{
+
     const x = (e.clientX / innerWidth) * 2 - 1;
     const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 8, y * 5, 0);
+
+    mouse.set(x * 10, y * 6, 0);
 });
 
 function applyMouseForce() {
-    const force = 0.04;
+
+    const radius = 6;
+    const force = 0.06;
 
     for (let i = 0; i < COUNT; i++) {
+
         const diff = positions[i].clone().sub(mouse);
         const dist = diff.length();
 
-        if (dist < 4) {
-            const push = (4 - dist) * force;
+        if (dist < radius) {
+            const push = (radius - dist) * force;
             diff.normalize();
-            velocities[i].add(diff.multiplyScalar(push));
+            velocities[i].addScaledVector(diff, push);
         }
     }
 }
@@ -137,10 +170,12 @@ function applyMouseForce() {
 // ------------------------------------
 // RENDER LOOP
 // ------------------------------------
-function animate() {
+function animate(t) {
+
+    const time = t * 0.001;
 
     applyMouseForce();
-    updatePhysics();
+    updatePhysics(time);
 
     for (let i = 0; i < COUNT; i++) {
         temp.position.copy(positions[i]);
