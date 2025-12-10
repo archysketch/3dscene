@@ -1,265 +1,272 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Lusion Style Smooth 3D Balls</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lusion-Style Floating Ornaments</title>
 
-  <style>
+<style>
     html,body{
-      margin:0;
-      padding:0;
-      overflow:hidden;
-      height:100%;
-      background:
-        radial-gradient(circle at 50% 0%, #1e3d72 0%, #050713 55%, #000000 100%);
+        margin:0;
+        padding:0;
+        overflow:hidden;
+        height:100%;
+        background: radial-gradient(circle at 50% 0%, #1e3d72 0%, #050713 55%, #000000 100%);
     }
-    canvas{display:block;}
+    canvas { display:block; }
     #hint{
-      position:fixed;
-      left:50%;
-      bottom:16px;
-      transform:translateX(-50%);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      font-size:10px;
-      letter-spacing:0.18em;
-      text-transform:uppercase;
-      color:rgba(255,255,255,0.4);
-      pointer-events:none;
+        position:fixed;
+        left:50%;
+        bottom:16px;
+        transform:translateX(-50%);
+        font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        font-size:10px;
+        letter-spacing:0.18em;
+        text-transform:uppercase;
+        color:rgba(255,255,255,0.4);
+        pointer-events:none;
     }
-  </style>
+</style>
 </head>
 
 <body>
-
 <div id="hint">MOVE MOUSE · DRAG · SCROLL</div>
 
-<!-- three.js (global THREE) -->
+<!-- THREE.js (r126) -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/build/three.min.js"></script>
-<!-- GLTFLoader -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.126.1/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-/* -----------------------------------------------------------
-   SCENE / CAMERA / RENDERER
------------------------------------------------------------ */
+/* ============================================================
+   SCENE SETUP
+============================================================ */
 let scene = new THREE.Scene();
 
 let camera = new THREE.PerspectiveCamera(
-  35,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  100
+    35,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
 );
-camera.position.set(0, 0, 18);
+camera.position.set(0,0,18);
 
 let renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.setPixelRatio(window.devicePixelRatio);
 renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.setClearColor(0x000000, 0);
 document.body.appendChild(renderer.domElement);
 
-/* -----------------------------------------------------------
+/* ============================================================
    LIGHTS
------------------------------------------------------------ */
+============================================================ */
 scene.add(new THREE.HemisphereLight(0x88aaff, 0x050506, 0.7));
 
-let key = new THREE.DirectionalLight(0xffffff, 1.4);
-key.position.set(6, 8, 10);
-scene.add(key);
+let keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+keyLight.position.set(6, 8, 10);
+scene.add(keyLight);
 
-let rim = new THREE.PointLight(0x3c7bff, 2.3, 80);
+let rim = new THREE.PointLight(0x3c7bff, 2.2, 80);
 rim.position.set(-7, -3, 8);
 scene.add(rim);
 
-/* -----------------------------------------------------------
-   GROUP + BODIES
------------------------------------------------------------ */
+/* ============================================================
+   GROUP + LOADER
+============================================================ */
 let group = new THREE.Group();
 scene.add(group);
 
-let bodies = []; // { mesh, velocity }
-
 let loader = new THREE.GLTFLoader();
+let bodies = [];   // { mesh, velocity }
 
-/* -----------------------------------------------------------
-   GLB → CLONES
------------------------------------------------------------ */
-function createBodies(gltf, count, baseScale, spread) {
-  for (let i = 0; i < count; i++) {
-    let clone = gltf.scene.clone(true);
-
-    clone.traverse(obj => {
-      if (obj.isMesh && obj.material) {
-        obj.material.metalness = 0.45;
-        obj.material.roughness = 0.25;
-      }
-    });
-
-    let s = baseScale * (0.7 + Math.random() * 0.8);
-    clone.scale.set(s, s, s);
-
-    clone.position.set(
-      (Math.random()*2-1)*spread.x,
-      (Math.random()*2-1)*spread.y,
-      (Math.random()*2-1)*spread.z
-    );
-
-    group.add(clone);
-
-    bodies.push({
-      mesh: clone,
-      velocity: new THREE.Vector3(
-        (Math.random()*2-1)*0.01,
-        (Math.random()*2-1)*0.01,
-        (Math.random()*2-1)*0.01
-      )
-    });
-  }
-}
-
-/* -----------------------------------------------------------
-   LOAD MODELS
------------------------------------------------------------ */
-let loaded = 0;
+/* ============================================================
+   LOAD GLBs
+============================================================ */
+let assetsLoaded = 0;
 const TOTAL = 2;
 
-loader.load("christmas_ball.glb", gltf => {
-  createBodies(gltf, 10, 0.9, {x:5,y:3,z:3});
-  if (++loaded === TOTAL) start();
+// BALLS
+loader.load("christmas_ball.glb", gltf=>{
+    spawn(gltf, 10, 0.9, {x:5,y:3,z:3});
+    checkStart();
 });
 
-loader.load("christmas_tree_ball.glb", gltf => {
-  createBodies(gltf, 8, 1.1, {x:5,y:3,z:3});
-  if (++loaded === TOTAL) start();
+// TREE BALLS
+loader.load("christmas_tree_ball.glb", gltf=>{
+    spawn(gltf, 8, 1.1, {x:5,y:3,z:3});
+    checkStart();
 });
 
-/* -----------------------------------------------------------
-   MOUSE + SCROLL
------------------------------------------------------------ */
+function checkStart(){
+    assetsLoaded++;
+    if(assetsLoaded === TOTAL) start();
+}
+
+/* Spawn clones */
+function spawn(gltf, count, scale, spread){
+    for(let i=0;i<count;i++){
+        let m = gltf.scene.clone(true);
+
+        m.traverse(obj=>{
+            if(obj.isMesh){
+                obj.material.metalness = 0.45;
+                obj.material.roughness = 0.25;
+            }
+        });
+
+        let s = scale * (0.7 + Math.random()*0.8);
+        m.scale.set(s,s,s);
+
+        m.position.set(
+            (Math.random()*2-1)*spread.x,
+            (Math.random()*2-1)*spread.y,
+            (Math.random()*2-1)*spread.z
+        );
+
+        group.add(m);
+
+        bodies.push({
+            mesh: m,
+            velocity: new THREE.Vector3()
+        });
+    }
+}
+
+/* ============================================================
+   MOUSE
+============================================================ */
 let mouseNorm = new THREE.Vector2(0,0);
 let scrollOffset = 0;
 
-window.addEventListener("pointermove", e => {
-  mouseNorm.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouseNorm.y = (e.clientY / window.innerHeight) * 2 - 1;
+window.addEventListener("pointermove", e=>{
+    mouseNorm.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouseNorm.y = (e.clientY / window.innerHeight) * 2 - 1;
 });
 
-window.addEventListener("wheel", e => {
-  scrollOffset += e.deltaY * 0.0007;
-  scrollOffset = Math.max(-2, Math.min(2, scrollOffset));
-}, { passive:true });
+window.addEventListener("wheel", e=>{
+    scrollOffset += e.deltaY * 0.0007;
+    scrollOffset = Math.max(-2, Math.min(2, scrollOffset));
+},{passive:true});
 
-/* -----------------------------------------------------------
-   LUSION STYLE PHYSICS ENGINE
------------------------------------------------------------ */
-function applyLusionPhysics(dt)
-{
-  let R = 5.0;                    // sphere radius
-  let repelRadius = 2.4;         // object-object repel area
-  let mouseRadius = 3.0;         // mouse influence
-  let damping = 0.92;
-  let centerForce = 0.15;
-  let repelForce = 0.035;
-  let mouseForce = 0.18;
+/* ============================================================
+   PHYSICS — LUSION STYLE
+============================================================ */
+function updatePhysics(dt){
+    const R = 5.5;              // spherical shell radius
+    const repelDist = 1.9;      // minimum distance
+    const repelForce = 0.12;    // strong local collision
+    const shellForce = 0.25;    // spherical constraint
+    const driftForce = 0.04;    // random drift
+    const damping = 0.90;       // velocity smoothing
 
-  let mouseWorld = new THREE.Vector3(
-    mouseNorm.x * 4.5,
-    -mouseNorm.y * 3.0,
-    0
-  );
+    let mouseWorld = new THREE.Vector3(
+        mouseNorm.x * 4,
+        -mouseNorm.y * 3,
+        0
+    );
 
-  // soft neighbor repel
-  for (let i=0;i<bodies.length;i++){
-    for (let j=i+1;j<bodies.length;j++){
-      let bi=bodies[i], bj=bodies[j];
-      let d = bi.mesh.position.clone().sub(bj.mesh.position);
-      let dist = d.length();
-      if(dist>0 && dist<repelRadius){
-        let f = (repelRadius - dist) * repelForce;
-        d.normalize();
-        bi.velocity.addScaledVector(d,  f);
-        bj.velocity.addScaledVector(d, -f);
-      }
-    }
-  }
+    // COLLISION / REPULSION
+    for(let i=0;i<bodies.length;i++){
+        for(let j=i+1;j<bodies.length;j++){
+            let bi = bodies[i], bj = bodies[j];
+            let p1 = bi.mesh.position;
+            let p2 = bj.mesh.position;
 
-  // each body
-  for (let b of bodies){
-    let p=b.mesh.position, v=b.velocity;
+            let diff = p1.clone().sub(p2);
+            let dist = diff.length();
 
-    // spherical shell constraint
-    let radial = p.length();
-    if(radial>0){
-      let diff = radial - R;
-      let n = p.clone().normalize();
-      v.addScaledVector(n, -diff * centerForce);
+            if(dist < repelDist && dist > 0){
+                let push = (repelDist - dist) * repelForce;
+                diff.normalize();
+                bi.velocity.addScaledVector(diff, push);
+                bj.velocity.addScaledVector(diff, -push);
+            }
+        }
     }
 
-    // mouse repel
-    let mvec = p.clone().sub(mouseWorld);
-    let md = mvec.length();
-    if (md > 0 && md < mouseRadius){
-      let f = (mouseRadius - md) * mouseForce;
-      mvec.normalize();
-      v.addScaledVector(mvec, f);
+    // INDIVIDUAL MOTION
+    for(let b of bodies){
+        let p = b.mesh.position;
+        let v = b.velocity;
+
+        // random drift
+        v.x += (Math.random()-0.5) * driftForce;
+        v.y += (Math.random()-0.5) * driftForce;
+        v.z += (Math.random()-0.5) * driftForce;
+
+        // spherical shell
+        let radial = p.length();
+        if(radial > 0){
+            let diff = radial - R;
+            let n = p.clone().normalize();
+            v.addScaledVector(n, -diff * shellForce);
+        }
+
+        // mouse effect
+        let d = p.clone().sub(mouseWorld);
+        let md = d.length();
+        if(md < 3 && md > 0){
+            d.normalize();
+            v.addScaledVector(d, (3-md)*0.05);
+        }
+
+        // damping
+        v.multiplyScalar(damping);
+
+        // update position
+        p.addScaledVector(v, dt * 60);
+
+        // rotation
+        b.mesh.rotation.x += 0.25 * dt;
+        b.mesh.rotation.y += 0.35 * dt;
     }
-
-    // tiny noise
-    v.x += (Math.random()-0.5)*0.001;
-    v.y += (Math.random()-0.5)*0.001;
-    v.z += (Math.random()-0.5)*0.001;
-
-    // damping
-    v.multiplyScalar(damping);
-
-    // position
-    p.addScaledVector(v, dt*60);
-
-    // smooth rotation
-    b.mesh.rotation.x += 0.25*dt;
-    b.mesh.rotation.y += 0.35*dt;
-  }
 }
 
-/* -----------------------------------------------------------
-   ANIMATION LOOP
------------------------------------------------------------ */
-let last = performance.now();
+/* ============================================================
+   LOOP
+============================================================ */
 let running = false;
+let last = performance.now();
 
 function start(){
-  running = true;
-  last = performance.now();
-  animate();
+    if(!running){
+        running = true;
+        animate();
+    }
 }
 
 function animate(){
-  requestAnimationFrame(animate);
-  if (!running) return;
+    requestAnimationFrame(animate);
 
-  let now = performance.now();
-  let dt = Math.min(0.04, (now-last)/1000);
-  last = now;
+    if(!running) return;
 
-  applyLusionPhysics(dt);
+    let now = performance.now();
+    let dt = Math.min(0.04, (now-last)/1000);
+    last = now;
 
-  // smooth zoom
-  let targetZ = 18 + scrollOffset * 3;
-  camera.position.z += (targetZ - camera.position.z)*0.06;
+    updatePhysics(dt);
+    updateCamera(dt);
 
-  camera.lookAt(0,0,0);
-  renderer.render(scene,camera);
+    renderer.render(scene, camera);
 }
 
-/* -----------------------------------------------------------
-   RESIZE
------------------------------------------------------------ */
-window.addEventListener("resize",()=>{
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+/* Camera smooth follow */
+function updateCamera(dt){
+    let tiltX = mouseNorm.y * 0.35;
+    let tiltY = mouseNorm.x * 0.55;
+
+    group.rotation.x += (tiltX - group.rotation.x) * 0.06;
+    group.rotation.y += (tiltY - group.rotation.y) * 0.06;
+
+    let targetZ = 18 + scrollOffset * 3;
+    camera.position.z += (targetZ - camera.position.z) * 0.06;
+    camera.lookAt(0,0,0);
+}
+
+/* Resize */
+window.addEventListener("resize", ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
 });
 </script>
 
