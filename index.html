@@ -2,15 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Style GPU Balls</title>
+<title>Lusion Physics Prototype</title>
 <style>
     html, body {
-        margin: 0;
-        padding: 0;
+        margin: 0; padding: 0;
         overflow: hidden;
-        background: #02040a;
+        background: #000;
     }
-    canvas { display: block; }
 </style>
 </head>
 <body>
@@ -18,167 +16,147 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-// ------------------------
-// SCENE + CAMERA
-// ------------------------
+// ------------------------------------
+// SCENE & CAMERA
+// ------------------------------------
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x02040a, 20, 60);
-
 const camera = new THREE.PerspectiveCamera(
-    55,
-    innerWidth / innerHeight,
-    0.1,
-    100
+    55, innerWidth / innerHeight, 0.1, 100
 );
 camera.position.set(0, 0, 22);
 
-// ------------------------
-// RENDERER
-// ------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ------------------------
-// LIGHTING (soft lusion look)
-// ------------------------
-const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.6);
+// ------------------------------------
+// LIGHT
+// ------------------------------------
+const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8);
 scene.add(hemi);
 
-const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-dir.position.set(4, 6, 8);
-scene.add(dir);
-
-// ------------------------
+// ------------------------------------
 // BALL INSTANCING
-// ------------------------
-const COUNT = 50;
+// ------------------------------------
+const COUNT = 40;
+const positions = [];
+const velocities = [];
+
 const geometry = new THREE.SphereGeometry(1, 32, 32);
-
-// CUSTOM SHADER MATERIAL (Lusion-style)
-const material = new THREE.ShaderMaterial({
-    uniforms: {
-        u_time: { value: 0 },
-        u_mouse: { value: new THREE.Vector3(0,0,0) }
-    },
-    vertexShader: `
-        uniform float u_time;
-        uniform vec3 u_mouse;
-        
-        attribute float a_id;
-        
-        varying vec3 vNormal;
-        varying float v_id;
-
-        // SIMPLE NOISE
-        float noise(vec3 p){
-            return fract(sin(dot(p.xyz ,vec3(12.9898,78.233,45.164))) * 43758.5453);
-        }
-
-        void main() {
-            vNormal = normal;
-            v_id = a_id;
-
-            float id = a_id;
-
-            // BASE POSITION FROM INSTANCE MATRIX
-            vec3 pos = position;
-
-            // SOFT FLOATING MOTION
-            float t = u_time * 0.4 + id * 10.0;
-            pos.x += sin(t * 0.7) * 0.4;
-            pos.y += sin(t * 1.4) * 0.4;
-            pos.z += sin(t * 1.0) * 0.4;
-
-            // CENTER SPRING (keeps them grouped like lusion)
-            vec3 inst = vec3(
-                sin(id * 12.0) * 6.0,
-                sin(id * 7.0) * 3.0,
-                sin(id * 5.0) * 4.0
-            );
-            pos += inst;
-
-            // MOUSE REPEL (soft)
-            float d = distance(pos, u_mouse);
-            if (d < 3.0) {
-                pos += normalize(pos - u_mouse) * (3.0 - d);
-            }
-
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-        }
-    `,
-    fragmentShader: `
-        varying vec3 vNormal;
-        varying float v_id;
-
-        void main() {
-            // soft shading
-            float d = dot(normalize(vNormal), vec3(0.2,0.6,1.0));
-            d = pow(d * 0.7 + 0.3, 2.0);
-
-            // soft fresnel
-            float f = pow(1.0 - abs(dot(vNormal, vec3(0.0,0.0,1.0))), 2.5);
-
-            vec3 color = mix(vec3(0.12,0.35,1.0), vec3(1.0,0.2,0.2), fract(v_id * 12.0));
-
-            gl_FragColor = vec4(color * d + f * 0.5, 1.0);
-        }
-    `
+const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.3,
+    metalness: 0.2
 });
 
-// CREATE INSTANCED MESH
-const mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
+scene.add(instanced);
 
 const temp = new THREE.Object3D();
-const idArray = new Float32Array(COUNT);
 
+// RANDOM START POSITIONS
 for (let i = 0; i < COUNT; i++) {
-    temp.position.set(
+    positions[i] = new THREE.Vector3(
         (Math.random() - 0.5) * 10,
         (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 8
+        (Math.random() - 0.5) * 6
     );
-    temp.updateMatrix();
-    mesh.setMatrixAt(i, temp.matrix);
-    idArray[i] = Math.random() * 1000;
+
+    velocities[i] = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.05
+    );
 }
 
-// custom attribute → shader knows each id
-mesh.geometry.setAttribute(
-    "a_id",
-    new THREE.InstancedBufferAttribute(idArray, 1)
-);
+// ------------------------------------
+// PHYSICS LOOP
+// ------------------------------------
+function updatePhysics() {
+    const centerForce = 0.002;  
+    const damping = 0.96;       
+    const repelRadius = 2.2;
+    const repelStrength = 0.015;
 
-scene.add(mesh);
+    for (let i = 0; i < COUNT; i++) {
 
-// ------------------------
-// MOUSE INTERACTION
-// ------------------------
+        // SOFT CENTERING
+        velocities[i].x -= positions[i].x * centerForce;
+        velocities[i].y -= positions[i].y * centerForce;
+        velocities[i].z -= positions[i].z * centerForce;
+
+        // PAIRWISE REPEL (NO OVERLAP)
+        for (let j = i + 1; j < COUNT; j++) {
+
+            const diff = positions[i].clone().sub(positions[j]);
+            const dist = diff.length();
+
+            if (dist < repelRadius && dist > 0) {
+                const push = (repelRadius - dist) * repelStrength;
+                diff.normalize();
+
+                velocities[i].add(diff.clone().multiplyScalar(push));
+                velocities[j].add(diff.clone().multiplyScalar(-push));
+            }
+        }
+
+        // VELOCITY DAMP
+        velocities[i].multiplyScalar(damping);
+
+        // APPLY VELOCITY
+        positions[i].add(velocities[i]);
+    }
+}
+
+// ------------------------------------
+// MOUSE FORCE
+// ------------------------------------
 let mouse = new THREE.Vector3();
-
 window.addEventListener("pointermove", (e)=>{
     const x = (e.clientX / innerWidth) * 2 - 1;
     const y = -(e.clientY / innerHeight) * 2 + 1;
     mouse.set(x * 8, y * 5, 0);
 });
 
-// ------------------------
-// ANIMATION LOOP
-// ------------------------
-function animate(t){
-    material.uniforms.u_time.value = t * 0.001;
-    material.uniforms.u_mouse.value = mouse;
+function applyMouseForce() {
+    const force = 0.04;
+
+    for (let i = 0; i < COUNT; i++) {
+        const diff = positions[i].clone().sub(mouse);
+        const dist = diff.length();
+
+        if (dist < 4) {
+            const push = (4 - dist) * force;
+            diff.normalize();
+            velocities[i].add(diff.multiplyScalar(push));
+        }
+    }
+}
+
+// ------------------------------------
+// RENDER LOOP
+// ------------------------------------
+function animate() {
+
+    applyMouseForce();
+    updatePhysics();
+
+    for (let i = 0; i < COUNT; i++) {
+        temp.position.copy(positions[i]);
+        temp.updateMatrix();
+        instanced.setMatrixAt(i, temp.matrix);
+    }
+
+    instanced.instanceMatrix.needsUpdate = true;
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
-requestAnimationFrame(animate);
+animate();
 
-// ------------------------
-// RESIZE
-// ------------------------
-addEventListener("resize", ()=>{
+// ------------------------------------
+window.addEventListener("resize", ()=>{
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
