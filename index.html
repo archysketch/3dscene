@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Physics Prototype</title>
+<title>Lusion Physics Improved</title>
 <style>
-    html, body {
-        margin: 0; padding: 0;
-        overflow: hidden;
-        background: #000;
-    }
+  html, body {
+    margin: 0; padding: 0;
+    overflow: hidden;
+    background: #000;
+  }
 </style>
 </head>
 <body>
@@ -16,150 +16,201 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-// ------------------------------------
+// --------------------------------------------------
 // SCENE & CAMERA
-// ------------------------------------
+// --------------------------------------------------
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
-    55, innerWidth / innerHeight, 0.1, 100
+  55, innerWidth / innerHeight, 0.1, 100
 );
-camera.position.set(0, 0, 22);
+camera.position.set(0, 0, 25);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ------------------------------------
+// --------------------------------------------------
 // LIGHT
-// ------------------------------------
-const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8);
+// --------------------------------------------------
+const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
 scene.add(hemi);
 
-// ------------------------------------
-// BALL INSTANCING
-// ------------------------------------
+// --------------------------------------------------
+// SETTINGS
+// --------------------------------------------------
 const COUNT = 40;
+
 const positions = [];
 const velocities = [];
 
+const scales = [];   // ★ ekledim: topların farklı boyutu
+const colors = [];   // ★ ekledim: rastgele renk paleti
+const drift = [];    // ★ ekledim: idle micro movement
+
+const palette = [
+  0xff6b6b,  // kırmızı
+  0x4da6ff,  // mavi
+  0xffc94c,  // sarı
+  0x9d7bff,  // mor
+  0xff8cf0   // pembe
+];
+
+// --------------------------------------------------
+// GEOMETRY & INSTANCED MESH
+// --------------------------------------------------
 const geometry = new THREE.SphereGeometry(1, 32, 32);
 const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.3,
-    metalness: 0.2
+  roughness: 0.25,
+  metalness: 0.15,
+  color: 0xffffff
 });
 
 const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
+instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+instanced.instanceColor = new Float32Array(COUNT * 3);
 scene.add(instanced);
 
 const temp = new THREE.Object3D();
 
-// RANDOM START POSITIONS
+// --------------------------------------------------
+// INITIAL POSITION & VELOCITY
+// --------------------------------------------------
 for (let i = 0; i < COUNT; i++) {
-    positions[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 6
-    );
 
-    velocities[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05
-    );
+  positions[i] = new THREE.Vector3(
+    (Math.random() - 0.5) * 10,
+    (Math.random() - 0.5) * 6,
+    (Math.random() - 0.5) * 6
+  );
+
+  velocities[i] = new THREE.Vector3(
+    (Math.random() - 0.5) * 0.05,
+    (Math.random() - 0.5) * 0.05,
+    (Math.random() - 0.5) * 0.05
+  );
+
+  // ★ RANDOM SIZE
+  scales[i] = 1.5 + Math.random() * 1.4;
+
+  // ★ RANDOM COLORS
+  colors[i] = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
+
+  // ★ DRIFT NOISE SEED
+  drift[i] = new THREE.Vector3(
+    Math.random() * 10,
+    Math.random() * 10,
+    Math.random() * 10
+  );
 }
 
-// ------------------------------------
-// PHYSICS LOOP
-// ------------------------------------
-function updatePhysics() {
-    const centerForce = 0.002;  
-    const damping = 0.96;       
-    const repelRadius = 2.2;
-    const repelStrength = 0.015;
+// --------------------------------------------------
+// PHYSICS
+// --------------------------------------------------
+function updatePhysics(time) {
 
-    for (let i = 0; i < COUNT; i++) {
+  const centerForce = 0.0017;
+  const damping = 0.965;
 
-        // SOFT CENTERING
-        velocities[i].x -= positions[i].x * centerForce;
-        velocities[i].y -= positions[i].y * centerForce;
-        velocities[i].z -= positions[i].z * centerForce;
+  for (let i = 0; i < COUNT; i++) {
 
-        // PAIRWISE REPEL (NO OVERLAP)
-        for (let j = i + 1; j < COUNT; j++) {
+    // ★ SMOOTH IDLE FLOAT (Lusion hissi)
+    positions[i].x += Math.sin(time * 0.9 + drift[i].x) * 0.01;
+    positions[i].y += Math.cos(time * 1.1 + drift[i].y) * 0.01;
+    positions[i].z += Math.sin(time * 1.3 + drift[i].z) * 0.01;
 
-            const diff = positions[i].clone().sub(positions[j]);
-            const dist = diff.length();
+    // center pull
+    velocities[i].x -= positions[i].x * centerForce;
+    velocities[i].y -= positions[i].y * centerForce;
+    velocities[i].z -= positions[i].z * centerForce;
 
-            if (dist < repelRadius && dist > 0) {
-                const push = (repelRadius - dist) * repelStrength;
-                diff.normalize();
+    // collisions
+    for (let j = i + 1; j < COUNT; j++) {
 
-                velocities[i].add(diff.clone().multiplyScalar(push));
-                velocities[j].add(diff.clone().multiplyScalar(-push));
-            }
-        }
+      const diff = positions[i].clone().sub(positions[j]);
+      const dist = diff.length();
 
-        // VELOCITY DAMP
-        velocities[i].multiplyScalar(damping);
+      const minDist = scales[i] + scales[j] + 0.3; // ★ ölçeklere göre çarpışma
 
-        // APPLY VELOCITY
-        positions[i].add(velocities[i]);
+      if (dist < minDist && dist > 0) {
+
+        const force = (minDist - dist) * 0.02;
+        diff.normalize();
+
+        velocities[i].add(diff.clone().multiplyScalar(force));
+        velocities[j].add(diff.clone().multiplyScalar(-force));
+      }
     }
+
+    // damping
+    velocities[i].multiplyScalar(damping);
+
+    // apply velocity
+    positions[i].add(velocities[i]);
+  }
 }
 
-// ------------------------------------
+// --------------------------------------------------
 // MOUSE FORCE
-// ------------------------------------
+// --------------------------------------------------
 let mouse = new THREE.Vector3();
-window.addEventListener("pointermove", (e)=>{
-    const x = (e.clientX / innerWidth) * 2 - 1;
-    const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 8, y * 5, 0);
+
+window.addEventListener("pointermove", e => {
+  const x = (e.clientX / innerWidth) * 2 - 1;
+  const y = -(e.clientY / innerHeight) * 2 + 1;
+  mouse.set(x * 10, y * 6, 0);
 });
 
 function applyMouseForce() {
-    const force = 0.04;
 
-    for (let i = 0; i < COUNT; i++) {
-        const diff = positions[i].clone().sub(mouse);
-        const dist = diff.length();
+  const radius = 5.5;
+  const force = 0.06;
 
-        if (dist < 4) {
-            const push = (4 - dist) * force;
-            diff.normalize();
-            velocities[i].add(diff.multiplyScalar(push));
-        }
+  for (let i = 0; i < COUNT; i++) {
+
+    const diff = positions[i].clone().sub(mouse);
+    const dist = diff.length();
+
+    if (dist < radius) {
+      velocities[i].add(diff.normalize().multiplyScalar((radius - dist) * force));
     }
+  }
 }
 
-// ------------------------------------
+// --------------------------------------------------
 // RENDER LOOP
-// ------------------------------------
-function animate() {
+// --------------------------------------------------
+function animate(t) {
 
-    applyMouseForce();
-    updatePhysics();
+  const time = t * 0.001;
 
-    for (let i = 0; i < COUNT; i++) {
-        temp.position.copy(positions[i]);
-        temp.updateMatrix();
-        instanced.setMatrixAt(i, temp.matrix);
-    }
+  applyMouseForce();
+  updatePhysics(time);
 
-    instanced.instanceMatrix.needsUpdate = true;
+  for (let i = 0; i < COUNT; i++) {
 
-    renderer.render(scene, camera);
-    requestAnimationFrame(animate);
+    temp.position.copy(positions[i]);
+    temp.scale.set(scales[i], scales[i], scales[i]);
+
+    temp.updateMatrix();
+    instanced.setMatrixAt(i, temp.matrix);
+
+    instanced.setColorAt(i, colors[i]);
+  }
+
+  instanced.instanceMatrix.needsUpdate = true;
+  instanced.instanceColor.needsUpdate = true;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
 }
 animate();
 
-// ------------------------------------
-window.addEventListener("resize", ()=>{
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
+// --------------------------------------------------
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
 });
 </script>
 
