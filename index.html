@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Physics Improved</title>
+<title>Lusion Physics Prototype</title>
 <style>
-  html, body {
-    margin: 0; padding: 0;
-    overflow: hidden;
-    background: #000;
-  }
+    html, body {
+        margin: 0; padding: 0;
+        overflow: hidden;
+        background: #000;
+    }
 </style>
 </head>
 <body>
@@ -21,9 +21,9 @@
 // --------------------------------------------------
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
-  55, innerWidth / innerHeight, 0.1, 100
+    55, innerWidth / innerHeight, 0.1, 100
 );
-camera.position.set(0, 0, 25);
+camera.position.set(0, 0, 22);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -37,71 +37,73 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
 scene.add(hemi);
 
 // --------------------------------------------------
-// SETTINGS
+// BALL MATERIALS (renkler buradan gelir)
 // --------------------------------------------------
-const COUNT = 40;
-
-const positions = [];
-const velocities = [];
-
-const scales = [];   // ★ ekledim: topların farklı boyutu
-const colors = [];   // ★ ekledim: rastgele renk paleti
-const drift = [];    // ★ ekledim: idle micro movement
-
 const palette = [
-  0xff6b6b,  // kırmızı
-  0x4da6ff,  // mavi
-  0xffc94c,  // sarı
-  0x9d7bff,  // mor
-  0xff8cf0   // pembe
+    0xff6b6b, // kırmızı
+    0x4da6ff, // mavi
+    0xffd86b, // sarı
+    0xbd7bff, // mor
+    0xff8ff2  // pembe
 ];
 
 // --------------------------------------------------
-// GEOMETRY & INSTANCED MESH
+// INSTANCING
 // --------------------------------------------------
-const geometry = new THREE.SphereGeometry(1, 32, 32);
-const material = new THREE.MeshStandardMaterial({
-  roughness: 0.25,
-  metalness: 0.15,
-  color: 0xffffff
-});
+const COUNT = 40;
+const positions = [];
+const velocities = [];
+const scales = [];
+const drift = [];
 
-const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
-instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-instanced.instanceColor = new Float32Array(COUNT * 3);
+const geometry = new THREE.SphereGeometry(1, 32, 32);
+
+const materials = palette.map(c =>
+    new THREE.MeshStandardMaterial({
+        color: c,
+        roughness: 0.25,
+        metalness: 0.15
+    })
+);
+
+// instanced için tek materyal gerekiyor → clone trick:
+const instanced = new THREE.InstancedMesh(
+    geometry,
+    materials[0],
+    COUNT
+);
 scene.add(instanced);
+
+instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
 const temp = new THREE.Object3D();
 
 // --------------------------------------------------
-// INITIAL POSITION & VELOCITY
+// INITIALIZE BALLS
 // --------------------------------------------------
 for (let i = 0; i < COUNT; i++) {
 
-  positions[i] = new THREE.Vector3(
-    (Math.random() - 0.5) * 10,
-    (Math.random() - 0.5) * 6,
-    (Math.random() - 0.5) * 6
-  );
+    positions[i] = new THREE.Vector3(
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6
+    );
 
-  velocities[i] = new THREE.Vector3(
-    (Math.random() - 0.5) * 0.05,
-    (Math.random() - 0.5) * 0.05,
-    (Math.random() - 0.5) * 0.05
-  );
+    velocities[i] = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.05
+    );
 
-  // ★ RANDOM SIZE
-  scales[i] = 1.5 + Math.random() * 1.4;
+    // ★ RANDOM SCALE
+    scales[i] = 1.4 + Math.random() * 1.4;
 
-  // ★ RANDOM COLORS
-  colors[i] = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
-
-  // ★ DRIFT NOISE SEED
-  drift[i] = new THREE.Vector3(
-    Math.random() * 10,
-    Math.random() * 10,
-    Math.random() * 10
-  );
+    // ★ DRIFT (idle hareket)
+    drift[i] = new THREE.Vector3(
+        Math.random() * 10,
+        Math.random() * 10,
+        Math.random() * 10
+    );
 }
 
 // --------------------------------------------------
@@ -109,45 +111,38 @@ for (let i = 0; i < COUNT; i++) {
 // --------------------------------------------------
 function updatePhysics(time) {
 
-  const centerForce = 0.0017;
-  const damping = 0.965;
+    const centerForce = 0.0015;
+    const damping = 0.965;
 
-  for (let i = 0; i < COUNT; i++) {
+    for (let i = 0; i < COUNT; i++) {
 
-    // ★ SMOOTH IDLE FLOAT (Lusion hissi)
-    positions[i].x += Math.sin(time * 0.9 + drift[i].x) * 0.01;
-    positions[i].y += Math.cos(time * 1.1 + drift[i].y) * 0.01;
-    positions[i].z += Math.sin(time * 1.3 + drift[i].z) * 0.01;
+        // ★ SMOOTH IDLE DRIFT
+        positions[i].x += Math.sin(time * 1.1 + drift[i].x) * 0.01;
+        positions[i].y += Math.cos(time * 0.9 + drift[i].y) * 0.01;
+        positions[i].z += Math.sin(time * 1.3 + drift[i].z) * 0.01;
 
-    // center pull
-    velocities[i].x -= positions[i].x * centerForce;
-    velocities[i].y -= positions[i].y * centerForce;
-    velocities[i].z -= positions[i].z * centerForce;
+        // center pull
+        velocities[i].addScaledVector(positions[i], -centerForce);
 
-    // collisions
-    for (let j = i + 1; j < COUNT; j++) {
+        // collisions
+        for (let j = i + 1; j < COUNT; j++) {
 
-      const diff = positions[i].clone().sub(positions[j]);
-      const dist = diff.length();
+            const diff = positions[i].clone().sub(positions[j]);
+            const dist = diff.length();
 
-      const minDist = scales[i] + scales[j] + 0.3; // ★ ölçeklere göre çarpışma
+            const minDist = scales[i] + scales[j] + 0.3;
 
-      if (dist < minDist && dist > 0) {
+            if (dist < minDist && dist > 0) {
+                const force = (minDist - dist) * 0.02;
+                diff.normalize();
+                velocities[i].addScaledVector(diff, force);
+                velocities[j].addScaledVector(diff, -force);
+            }
+        }
 
-        const force = (minDist - dist) * 0.02;
-        diff.normalize();
-
-        velocities[i].add(diff.clone().multiplyScalar(force));
-        velocities[j].add(diff.clone().multiplyScalar(-force));
-      }
+        velocities[i].multiplyScalar(damping);
+        positions[i].add(velocities[i]);
     }
-
-    // damping
-    velocities[i].multiplyScalar(damping);
-
-    // apply velocity
-    positions[i].add(velocities[i]);
-  }
 }
 
 // --------------------------------------------------
@@ -156,25 +151,24 @@ function updatePhysics(time) {
 let mouse = new THREE.Vector3();
 
 window.addEventListener("pointermove", e => {
-  const x = (e.clientX / innerWidth) * 2 - 1;
-  const y = -(e.clientY / innerHeight) * 2 + 1;
-  mouse.set(x * 10, y * 6, 0);
+    const x = (e.clientX / innerWidth) * 2 - 1;
+    const y = -(e.clientY / innerHeight) * 2 + 1;
+    mouse.set(x * 10, y * 6, 0);
 });
 
 function applyMouseForce() {
 
-  const radius = 5.5;
-  const force = 0.06;
+    const radius = 5;
+    const force = 0.06;
 
-  for (let i = 0; i < COUNT; i++) {
+    for (let i = 0; i < COUNT; i++) {
+        const diff = positions[i].clone().sub(mouse);
+        const dist = diff.length();
 
-    const diff = positions[i].clone().sub(mouse);
-    const dist = diff.length();
-
-    if (dist < radius) {
-      velocities[i].add(diff.normalize().multiplyScalar((radius - dist) * force));
+        if (dist < radius) {
+            velocities[i].add(diff.normalize().multiplyScalar((radius - dist) * force));
+        }
     }
-  }
 }
 
 // --------------------------------------------------
@@ -182,35 +176,32 @@ function applyMouseForce() {
 // --------------------------------------------------
 function animate(t) {
 
-  const time = t * 0.001;
+    const time = t * 0.001;
 
-  applyMouseForce();
-  updatePhysics(time);
+    applyMouseForce();
+    updatePhysics(time);
 
-  for (let i = 0; i < COUNT; i++) {
+    for (let i = 0; i < COUNT; i++) {
 
-    temp.position.copy(positions[i]);
-    temp.scale.set(scales[i], scales[i], scales[i]);
+        temp.position.copy(positions[i]);
+        temp.scale.set(scales[i], scales[i], scales[i]);
 
-    temp.updateMatrix();
-    instanced.setMatrixAt(i, temp.matrix);
+        temp.updateMatrix();
+        instanced.setMatrixAt(i, temp.matrix);
+    }
 
-    instanced.setColorAt(i, colors[i]);
-  }
+    instanced.instanceMatrix.needsUpdate = true;
 
-  instanced.instanceMatrix.needsUpdate = true;
-  instanced.instanceColor.needsUpdate = true;
-
-  renderer.render(scene, camera);
-  requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
 }
 animate();
 
 // --------------------------------------------------
 window.addEventListener("resize", () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
 });
 </script>
 
