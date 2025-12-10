@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Lusion Physics v3</title>
+<title>Lusion Organic Physics v4</title>
 <style>
   html, body { margin: 0; padding: 0; overflow: hidden; background: black; }
 </style>
@@ -12,42 +12,44 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-// --------------------------------------------------
+// ---------------------------------------------
 // SCENE
-// --------------------------------------------------
+// ---------------------------------------------
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(0, 0, 35);
+camera.position.set(0, 0, 40);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// --------------------------------------------------
+// ---------------------------------------------
 // LIGHT
-// --------------------------------------------------
-scene.add(new THREE.HemisphereLight(0x4466ff, 0x000000, 1.1));
+// ---------------------------------------------
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const directional = new THREE.DirectionalLight(0xffffff, 0.8);
+directional.position.set(3, 5, 7);
+scene.add(directional);
 
-// --------------------------------------------------
-// PARAMETRELER
-// --------------------------------------------------
-const COUNT = 40;
-const SCALE = 2.5;          // 🟢 TOP BOYUTU = 2.5X
-const RADIUS = SCALE * 1.1; // çarpışma yarıçapı
-const CENTER_PULL = 0.002;
-const DAMPING = 0.92;
-const REPEL_FORCE = 0.045;  // 🟢 İTME GÜÇLENDİRİLDİ
-const REPEL_DISTANCE = RADIUS * 2.2; // 🟢 SIFIR İÇ İÇE
+// ---------------------------------------------
+// PARAMETERS
+// ---------------------------------------------
+const COUNT = 38;
+const RADIUS = 2.4;              // büyüklük artırıldı
+const COLLISION_DIST = RADIUS * 2.05;  // iç içe girme yok
+const MOUSE_FORCE = 0.14;        // vurma kuvveti
+const IDLE_DRIFT = 0.004;        // bağımsız küçük drift
+const DAMPING = 0.93;
 
-// --------------------------------------------------
-// INSTANCED BALLS
-// --------------------------------------------------
+// ---------------------------------------------
+// CREATE BALL INSTANCES
+// ---------------------------------------------
 const geometry = new THREE.SphereGeometry(RADIUS, 32, 32);
 const material = new THREE.MeshStandardMaterial({
-  color: 0x3e52ff,
-  roughness: 0.24,
-  metalness: 0.2
+  color: 0x4064ff,
+  roughness: 0.22,
+  metalness: 0.18
 });
 
 const balls = new THREE.InstancedMesh(geometry, material, COUNT);
@@ -58,70 +60,72 @@ const vel = [];
 const drift = [];
 const temp = new THREE.Object3D();
 
-// --------------------------------------------------
 // INITIAL POSITIONS
-// --------------------------------------------------
 for (let i = 0; i < COUNT; i++) {
   pos[i] = new THREE.Vector3(
-    (Math.random() - 0.5) * 14,
-    (Math.random() - 0.5) * 10,
-    (Math.random() - 0.5) * 10
+    (Math.random()-0.5) * 20,
+    (Math.random()-0.5) * 14,
+    (Math.random()-0.5) * 12
   );
 
+  // başlangıç hareketi
   vel[i] = new THREE.Vector3(
-    (Math.random() - 0.5) * 0.02,
-    (Math.random() - 0.5) * 0.02,
-    (Math.random() - 0.5) * 0.02
+    (Math.random()-0.5) * 0.04,
+    (Math.random()-0.5) * 0.04,
+    (Math.random()-0.5) * 0.04
   );
 
-  // idle drift
+  // bağımsız idle drift
   drift[i] = new THREE.Vector3(
-    (Math.random() - 0.5) * 0.008,
-    (Math.random() - 0.5) * 0.008,
-    (Math.random() - 0.5) * 0.008
+    (Math.random()-0.5) * IDLE_DRIFT,
+    (Math.random()-0.5) * IDLE_DRIFT,
+    (Math.random()-0.5) * IDLE_DRIFT
   );
 }
 
-// --------------------------------------------------
+// ---------------------------------------------
 // MOUSE FORCE
-// --------------------------------------------------
+// ---------------------------------------------
 let mouse = new THREE.Vector3();
-window.addEventListener("pointermove", (e) => {
+
+window.addEventListener("pointermove", e => {
   const x = (e.clientX / innerWidth) * 2 - 1;
   const y = -(e.clientY / innerHeight) * 2 + 1;
-  mouse.set(x * 10, y * 6, 0);
+  mouse.set(x * 14, y * 9, 0);
 });
 
-function applyMouseForce() {
+function applyMouseImpulse() {
   for (let i = 0; i < COUNT; i++) {
     const diff = pos[i].clone().sub(mouse);
     const dist = diff.length();
 
     if (dist < 6) {
       diff.normalize();
-      vel[i].add(diff.multiplyScalar((6 - dist) * 0.04));
+      vel[i].add(diff.multiplyScalar((6 - dist) * MOUSE_FORCE));
     }
   }
 }
 
-// --------------------------------------------------
-// PHYSICS UPDATE
-// --------------------------------------------------
+// ---------------------------------------------
+// PHYSICS
+// ---------------------------------------------
 function updatePhysics() {
 
-  // SÜREKLİ KÜÇÜK DRIFT
+  // 1. Bağımsız drift (organik hareket)
   for (let i = 0; i < COUNT; i++) {
     pos[i].add(drift[i]);
   }
 
-  // ÇİFT TARAFLI İTİŞ
+  // 2. Top-top çarpışmaları
   for (let i = 0; i < COUNT; i++) {
     for (let j = i + 1; j < COUNT; j++) {
+
       const diff = pos[i].clone().sub(pos[j]);
       const dist = diff.length();
 
-      if (dist < REPEL_DISTANCE && dist > 0) {
-        const push = (REPEL_DISTANCE - dist) * REPEL_FORCE;
+      if (dist < COLLISION_DIST && dist > 0) {
+
+        const push = (COLLISION_DIST - dist) * 0.065;
         diff.normalize();
 
         vel[i].add(diff.clone().multiplyScalar(push));
@@ -130,39 +134,24 @@ function updatePhysics() {
     }
   }
 
-  // MERKEZE DOĞRU YUMUŞAK ÇEKİM
-  for (let i = 0; i < COUNT; i++) {
-    vel[i].x -= pos[i].x * CENTER_PULL;
-    vel[i].y -= pos[i].y * CENTER_PULL;
-    vel[i].z -= pos[i].z * CENTER_PULL;
+  // 3. Mouse çarpma efekti
+  applyMouseImpulse();
 
+  // 4. Hız ve konum güncelle
+  for (let i = 0; i < COUNT; i++) {
     vel[i].multiplyScalar(DAMPING);
     pos[i].add(vel[i]);
   }
 }
 
-// --------------------------------------------------
-// ORBIT DRIFT — tüm sahne kendi ekseninde dönsün
-// --------------------------------------------------
-let orbitGroup = new THREE.Group();
-scene.add(orbitGroup);
-orbitGroup.add(balls);
-
-function updateOrbit() {
-  orbitGroup.rotation.y += 0.0018;
-  orbitGroup.rotation.x += 0.0007;
-}
-
-// --------------------------------------------------
-// ANIMATE
-// --------------------------------------------------
+// ---------------------------------------------
+// RENDER LOOP
+// ---------------------------------------------
 function animate() {
 
-  applyMouseForce();
   updatePhysics();
-  updateOrbit(); // 🟢 SAHNE HEP DÖNÜYOR
 
-  // Instanced Mesh pozisyonları güncelle
+  // instanced mesh matrix güncelle
   for (let i = 0; i < COUNT; i++) {
     temp.position.copy(pos[i]);
     temp.updateMatrix();
@@ -175,7 +164,7 @@ function animate() {
 }
 animate();
 
-// --------------------------------------------------
+// ---------------------------------------------
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
