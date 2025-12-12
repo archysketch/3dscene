@@ -2,22 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>GLB Visibility Test</title>
+<title>GLB WORKING TEST</title>
 <style>
 html, body {
     margin: 0;
     padding: 0;
-    background: #000;
     overflow: hidden;
+    background: #000;
 }
 </style>
 </head>
 <body>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
 
-<script>
+// ------------------------------------
+// SCENE
+// ------------------------------------
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
@@ -28,29 +31,34 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// IŞIK (abartılı)
+// ------------------------------------
+// LIGHT (STRONG)
+// ------------------------------------
 scene.add(new THREE.AmbientLight(0xffffff, 2));
+
 const dir = new THREE.DirectionalLight(0xffffff, 2);
 dir.position.set(5, 5, 5);
 scene.add(dir);
 
+// ------------------------------------
 // LOAD GLB
-const loader = new THREE.GLTFLoader();
+// ------------------------------------
+const loader = new GLTFLoader();
+
 loader.load(
     "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_ball.glb",
     (gltf) => {
-        console.log("GLB LOADED", gltf);
+        console.log("GLB LOADED ✅");
 
         const model = gltf.scene;
-        model.scale.setScalar(50);   // 🔥 DEV GİBİ
+        model.scale.setScalar(50); // 🔥 DEV GİBİ
         scene.add(model);
     },
     undefined,
-    (err) => {
-        console.error("GLB ERROR", err);
-    }
+    (err) => console.error("GLB ERROR ❌", err)
 );
 
+// ------------------------------------
 function animate() {
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
