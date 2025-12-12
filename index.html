@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>GLB Physics Final</title>
+<title>Lusion Physics Prototype</title>
 <style>
 html, body {
     margin: 0;
@@ -14,15 +14,13 @@ html, body {
 </head>
 <body>
 
-<script type="module">
-import * as THREE from "https://unpkg.com/three@0.152.2/build/three.module.js";
-import { GLTFLoader } from "https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
-/* -------------------------------------------------- */
-/* SCENE */
-/* -------------------------------------------------- */
+<script>
+// ------------------------------------
+// SCENE & CAMERA
+// ------------------------------------
 const scene = new THREE.Scene();
-
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0, 0, 24);
 
@@ -31,24 +29,33 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-/* -------------------------------------------------- */
-/* LIGHT */
-/* -------------------------------------------------- */
-scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+// ------------------------------------
+// LIGHT
+// ------------------------------------
+scene.add(new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8));
 
-const dir = new THREE.DirectionalLight(0xffffff, 1.4);
-dir.position.set(5, 8, 10);
-scene.add(dir);
-
-/* -------------------------------------------------- */
-/* PHYSICS DATA */
-/* -------------------------------------------------- */
+// ------------------------------------
+// BALLS
+// ------------------------------------
 const COUNT = 40;
-const objects = [];
+const BALL_RADIUS = 2.6; // ⬅️ biraz daha büyük
+
 const positions = [];
 const velocities = [];
-const rotations = [];
 
+const geometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
+const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.3,
+    metalness: 0.2
+});
+
+const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
+scene.add(instanced);
+
+const temp = new THREE.Object3D();
+
+// INITIAL STATE
 for (let i = 0; i < COUNT; i++) {
     positions[i] = new THREE.Vector3(
         (Math.random() - 0.5) * 12,
@@ -61,13 +68,11 @@ for (let i = 0; i < COUNT; i++) {
         (Math.random() - 0.5) * 0.04,
         (Math.random() - 0.5) * 0.04
     );
-
-    rotations[i] = new THREE.Vector3();
 }
 
-/* -------------------------------------------------- */
-/* MOUSE */
-/* -------------------------------------------------- */
+// ------------------------------------
+// MOUSE
+// ------------------------------------
 let mouse = new THREE.Vector3();
 window.addEventListener("pointermove", (e) => {
     const x = (e.clientX / innerWidth) * 2 - 1;
@@ -75,117 +80,103 @@ window.addEventListener("pointermove", (e) => {
     mouse.set(x * 9, y * 6, 0);
 });
 
-/* -------------------------------------------------- */
-/* TUNING */
-/* -------------------------------------------------- */
-const CENTER_FORCE = 0.0007;
-const DAMPING = 0.97;
+// ------------------------------------
+// PHYSICS TUNING
+// ------------------------------------
+const CENTER_FORCE = 0.0007;   // yavaş ama kararlı toplanma
+const RETURN_DAMPING = 0.97;   // ağır his ama snap yok
 
+const BASE_MOUSE_FORCE = 0.045;
+const INTERACTION_MULTIPLIER = 2;
 const MOUSE_RADIUS = 9;
-const MOUSE_FORCE = 0.08;
 
-const REPEL_RADIUS = 5;
-const REPEL_STRENGTH = 0.01;
+const REPEL_RADIUS = BALL_RADIUS * 2.1;
+const REPEL_STRENGTH = 0.011; // yumuşak çarpışma
 
-/* -------------------------------------------------- */
-/* LOAD GLB ONCE, CLONE */
-/* -------------------------------------------------- */
-const loader = new GLTFLoader();
-
-loader.load(
-    "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_ball.glb",
-    (gltf) => {
-
-        gltf.scene.traverse((c) => {
-            if (c.isMesh) {
-                c.geometry.center();
-                c.material = new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
-                    metalness: 0.3,
-                    roughness: 0.25
-                });
-            }
-        });
-
-        for (let i = 0; i < COUNT; i++) {
-            const clone = gltf.scene.clone(true);
-            clone.scale.setScalar(8); // 🔥 kritik ölçek
-            scene.add(clone);
-            objects.push(clone);
-        }
-
-        animate();
-    }
-);
-
-/* -------------------------------------------------- */
-/* PHYSICS */
-/* -------------------------------------------------- */
+// ------------------------------------
+// FORCES
+// ------------------------------------
 function applyMouseForce() {
     for (let i = 0; i < COUNT; i++) {
         const diff = positions[i].clone().sub(mouse);
         const dist = diff.length();
 
         if (dist < MOUSE_RADIUS) {
+            const push =
+                Math.pow(MOUSE_RADIUS - dist, 2) *
+                BASE_MOUSE_FORCE *
+                INTERACTION_MULTIPLIER;
+
             diff.normalize();
-            velocities[i].add(
-                diff.multiplyScalar((MOUSE_RADIUS - dist) * MOUSE_FORCE)
-            );
+            velocities[i].add(diff.multiplyScalar(push));
         }
     }
 }
 
 function updatePhysics() {
+
     for (let i = 0; i < COUNT; i++) {
 
-        velocities[i].sub(positions[i].clone().multiplyScalar(CENTER_FORCE));
+        // CENTER RETURN
+        velocities[i].x -= positions[i].x * CENTER_FORCE;
+        velocities[i].y -= positions[i].y * CENTER_FORCE;
+        velocities[i].z -= positions[i].z * CENTER_FORCE;
 
+        // SOFT COLLISION
         for (let j = i + 1; j < COUNT; j++) {
             const diff = positions[i].clone().sub(positions[j]);
             const dist = diff.length();
 
             if (dist < REPEL_RADIUS && dist > 0) {
+
+                const speed =
+                    velocities[i].length() +
+                    velocities[j].length();
+
+                const speedDamp = THREE.MathUtils.clamp(
+                    1 - speed * 2,
+                    0.25,
+                    1
+                );
+
+                const push =
+                    (REPEL_RADIUS - dist) *
+                    REPEL_STRENGTH *
+                    speedDamp;
+
                 diff.normalize();
-                const push = (REPEL_RADIUS - dist) * REPEL_STRENGTH;
                 velocities[i].add(diff.clone().multiplyScalar(push));
                 velocities[j].add(diff.clone().multiplyScalar(-push));
             }
         }
 
-        velocities[i].multiplyScalar(DAMPING);
+        velocities[i].multiplyScalar(RETURN_DAMPING);
         positions[i].add(velocities[i]);
-
-        rotations[i].x += velocities[i].y * 0.5;
-        rotations[i].y += velocities[i].x * 0.5;
-        rotations[i].z += velocities[i].z * 0.5;
     }
 }
 
-/* -------------------------------------------------- */
-/* LOOP */
-/* -------------------------------------------------- */
+// ------------------------------------
+// RENDER LOOP
+// ------------------------------------
 function animate() {
 
     applyMouseForce();
     updatePhysics();
 
     for (let i = 0; i < COUNT; i++) {
-        const obj = objects[i];
-        if (!obj) continue;
-
-        obj.position.copy(positions[i]);
-        obj.rotation.set(
-            rotations[i].x,
-            rotations[i].y,
-            rotations[i].z
-        );
+        temp.position.copy(positions[i]);
+        temp.updateMatrix();
+        instanced.setMatrixAt(i, temp.matrix);
     }
+
+    instanced.instanceMatrix.needsUpdate = true;
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
+animate();
 
-/* -------------------------------------------------- */
+// ------------------------------------
 window.addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
@@ -195,3 +186,4 @@ window.addEventListener("resize", () => {
 
 </body>
 </html>
+
