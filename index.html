@@ -38,10 +38,10 @@ scene.add(new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8));
 // BALLS
 // ------------------------------------
 const COUNT = 40;
+const BALL_RADIUS = 2;
+
 const positions = [];
 const velocities = [];
-
-const BALL_RADIUS = 2;
 
 const geometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
 const material = new THREE.MeshStandardMaterial({
@@ -83,15 +83,17 @@ window.addEventListener("pointermove", (e) => {
 // ------------------------------------
 // PHYSICS TUNING
 // ------------------------------------
-const CENTER_FORCE = 0.0008;     // toplanma yavaş
+const CENTER_FORCE = 0.0008;     // yavaş toplanma
 const RETURN_DAMPING = 0.985;
 
 const BASE_MOUSE_FORCE = 0.04;
 const INTERACTION_MULTIPLIER = 2;
-const MOUSE_RADIUS = 8;         // ⬅️ büyütüldü
+const MOUSE_RADIUS = 8;
 
 const REPEL_RADIUS = BALL_RADIUS * 2.1;
-const REPEL_STRENGTH = 0.010;
+const REPEL_STRENGTH = 0.012;   // ⬅️ sekme ciddi azaldı
+
+let startTime = performance.now();
 
 // ------------------------------------
 // FORCES
@@ -115,6 +117,9 @@ function applyMouseForce() {
 
 function updatePhysics() {
 
+    const elapsed = (performance.now() - startTime) / 1000;
+    const dampingNow = elapsed < 1 ? 0.9 : RETURN_DAMPING;
+
     for (let i = 0; i < COUNT; i++) {
 
         // CENTER RETURN
@@ -122,13 +127,28 @@ function updatePhysics() {
         velocities[i].y -= positions[i].y * CENTER_FORCE;
         velocities[i].z -= positions[i].z * CENTER_FORCE;
 
-        // REPEL
+        // SOFT COLLISION (LOW BOUNCE)
         for (let j = i + 1; j < COUNT; j++) {
             const diff = positions[i].clone().sub(positions[j]);
             const dist = diff.length();
 
             if (dist < REPEL_RADIUS && dist > 0) {
-                const push = (REPEL_RADIUS - dist) * REPEL_STRENGTH;
+
+                const speed =
+                    velocities[i].length() +
+                    velocities[j].length();
+
+                const speedDamp = THREE.MathUtils.clamp(
+                    1 - speed * 2,
+                    0.2,
+                    1
+                );
+
+                const push =
+                    (REPEL_RADIUS - dist) *
+                    REPEL_STRENGTH *
+                    speedDamp;
+
                 diff.normalize();
 
                 velocities[i].add(diff.clone().multiplyScalar(push));
@@ -136,7 +156,7 @@ function updatePhysics() {
             }
         }
 
-        velocities[i].multiplyScalar(RETURN_DAMPING);
+        velocities[i].multiplyScalar(dampingNow);
         positions[i].add(velocities[i]);
     }
 }
@@ -172,4 +192,3 @@ window.addEventListener("resize", () => {
 
 </body>
 </html>
-
