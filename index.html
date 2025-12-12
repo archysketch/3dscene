@@ -22,7 +22,7 @@ html, body {
 // ------------------------------------
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 0, 22);
+camera.position.set(0, 0, 24);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -38,7 +38,7 @@ scene.add(new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8));
 // BALLS
 // ------------------------------------
 const COUNT = 40;
-const BALL_RADIUS = 2;
+const BALL_RADIUS = 2.6; // ⬅️ biraz daha büyük
 
 const positions = [];
 const velocities = [];
@@ -58,15 +58,15 @@ const temp = new THREE.Object3D();
 // INITIAL STATE
 for (let i = 0; i < COUNT; i++) {
     positions[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 6
+        (Math.random() - 0.5) * 12,
+        (Math.random() - 0.5) * 7,
+        (Math.random() - 0.5) * 7
     );
 
     velocities[i] = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05
+        (Math.random() - 0.5) * 0.04,
+        (Math.random() - 0.5) * 0.04,
+        (Math.random() - 0.5) * 0.04
     );
 }
 
@@ -77,23 +77,21 @@ let mouse = new THREE.Vector3();
 window.addEventListener("pointermove", (e) => {
     const x = (e.clientX / innerWidth) * 2 - 1;
     const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 8, y * 5, 0);
+    mouse.set(x * 9, y * 6, 0);
 });
 
 // ------------------------------------
 // PHYSICS TUNING
 // ------------------------------------
-const CENTER_FORCE = 0.0008;     // yavaş toplanma
-const RETURN_DAMPING = 0.985;
+const CENTER_FORCE = 0.0007;   // yavaş ama kararlı toplanma
+const RETURN_DAMPING = 0.97;   // ağır his ama snap yok
 
-const BASE_MOUSE_FORCE = 0.04;
+const BASE_MOUSE_FORCE = 0.045;
 const INTERACTION_MULTIPLIER = 2;
-const MOUSE_RADIUS = 8;
+const MOUSE_RADIUS = 9;
 
 const REPEL_RADIUS = BALL_RADIUS * 2.1;
-const REPEL_STRENGTH = 0.012;   // ⬅️ sekme ciddi azaldı
-
-let startTime = performance.now();
+const REPEL_STRENGTH = 0.011; // yumuşak çarpışma
 
 // ------------------------------------
 // FORCES
@@ -117,9 +115,6 @@ function applyMouseForce() {
 
 function updatePhysics() {
 
-    const elapsed = (performance.now() - startTime) / 1000;
-    const dampingNow = elapsed < 1 ? 0.9 : RETURN_DAMPING;
-
     for (let i = 0; i < COUNT; i++) {
 
         // CENTER RETURN
@@ -127,7 +122,7 @@ function updatePhysics() {
         velocities[i].y -= positions[i].y * CENTER_FORCE;
         velocities[i].z -= positions[i].z * CENTER_FORCE;
 
-        // SOFT COLLISION (LOW BOUNCE)
+        // SOFT COLLISION
         for (let j = i + 1; j < COUNT; j++) {
             const diff = positions[i].clone().sub(positions[j]);
             const dist = diff.length();
@@ -140,7 +135,7 @@ function updatePhysics() {
 
                 const speedDamp = THREE.MathUtils.clamp(
                     1 - speed * 2,
-                    0.2,
+                    0.25,
                     1
                 );
 
@@ -150,13 +145,12 @@ function updatePhysics() {
                     speedDamp;
 
                 diff.normalize();
-
                 velocities[i].add(diff.clone().multiplyScalar(push));
                 velocities[j].add(diff.clone().multiplyScalar(-push));
             }
         }
 
-        velocities[i].multiplyScalar(dampingNow);
+        velocities[i].multiplyScalar(RETURN_DAMPING);
         positions[i].add(velocities[i]);
     }
 }
