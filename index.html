@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>GLB WORKING TEST</title>
+<title>GLB FINAL TEST</title>
 <style>
 html, body {
     margin: 0;
@@ -15,56 +15,52 @@ html, body {
 <body>
 
 <script type="module">
+/* ✅ DOĞRU CDN IMPORTLAR */
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
 
-// ------------------------------------
-// SCENE
-// ------------------------------------
+/* SCENE */
 const scene = new THREE.Scene();
 
+/* CAMERA */
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
 camera.position.set(0, 0, 10);
 
+/* RENDERER */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ------------------------------------
-// LIGHT (STRONG)
-// ------------------------------------
+/* LIGHT */
 scene.add(new THREE.AmbientLight(0xffffff, 2));
-
 const dir = new THREE.DirectionalLight(0xffffff, 2);
 dir.position.set(5, 5, 5);
 scene.add(dir);
 
-// ------------------------------------
-// LOAD GLB
-// ------------------------------------
+/* LOAD GLB */
 const loader = new GLTFLoader();
-
 loader.load(
     "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_ball.glb",
     (gltf) => {
         console.log("GLB LOADED ✅");
 
         const model = gltf.scene;
-        model.scale.setScalar(50); // 🔥 DEV GİBİ
+        model.scale.setScalar(50); // 🔥 bilerek dev
         scene.add(model);
     },
     undefined,
-    (err) => console.error("GLB ERROR ❌", err)
+    (err) => console.error("GLB LOAD ERROR ❌", err)
 );
 
-// ------------------------------------
+/* LOOP */
 function animate() {
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
 animate();
 
+/* RESIZE */
 window.addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
