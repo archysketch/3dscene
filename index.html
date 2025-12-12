@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion Physics Prototype</title>
+<title>Lusion GLB Physics</title>
 <style>
 html, body {
     margin: 0;
@@ -15,6 +15,7 @@ html, body {
 <body>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
 // ------------------------------------
@@ -32,30 +33,16 @@ document.body.appendChild(renderer.domElement);
 // ------------------------------------
 // LIGHT
 // ------------------------------------
-scene.add(new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8));
+scene.add(new THREE.HemisphereLight(0xffffff, 0x222222, 1.2));
 
 // ------------------------------------
-// BALLS
+// PHYSICS DATA
 // ------------------------------------
 const COUNT = 40;
-const BALL_RADIUS = 2.6; // ⬅️ biraz daha büyük
-
 const positions = [];
 const velocities = [];
+const rotations = [];
 
-const geometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
-const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.3,
-    metalness: 0.2
-});
-
-const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
-scene.add(instanced);
-
-const temp = new THREE.Object3D();
-
-// INITIAL STATE
 for (let i = 0; i < COUNT; i++) {
     positions[i] = new THREE.Vector3(
         (Math.random() - 0.5) * 12,
@@ -67,6 +54,12 @@ for (let i = 0; i < COUNT; i++) {
         (Math.random() - 0.5) * 0.04,
         (Math.random() - 0.5) * 0.04,
         (Math.random() - 0.5) * 0.04
+    );
+
+    rotations[i] = new THREE.Vector3(
+        Math.random(),
+        Math.random(),
+        Math.random()
     );
 }
 
@@ -83,15 +76,44 @@ window.addEventListener("pointermove", (e) => {
 // ------------------------------------
 // PHYSICS TUNING
 // ------------------------------------
-const CENTER_FORCE = 0.0007;   // yavaş ama kararlı toplanma
-const RETURN_DAMPING = 0.97;   // ağır his ama snap yok
+const CENTER_FORCE = 0.0007;
+const RETURN_DAMPING = 0.97;
 
 const BASE_MOUSE_FORCE = 0.045;
 const INTERACTION_MULTIPLIER = 2;
 const MOUSE_RADIUS = 9;
 
-const REPEL_RADIUS = BALL_RADIUS * 2.1;
-const REPEL_STRENGTH = 0.011; // yumuşak çarpışma
+const REPEL_RADIUS = 5.4;
+const REPEL_STRENGTH = 0.011;
+
+// ------------------------------------
+// LOAD GLB & CREATE INSTANCES
+// ------------------------------------
+const loader = new THREE.GLTFLoader();
+let instanced, temp = new THREE.Object3D();
+
+loader.load(
+    "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_ball.glb",
+    (gltf) => {
+
+        let sourceMesh;
+        gltf.scene.traverse((child) => {
+            if (child.isMesh) sourceMesh = child;
+        });
+
+        sourceMesh.geometry.center();
+        sourceMesh.geometry.computeVertexNormals();
+
+        instanced = new THREE.InstancedMesh(
+            sourceMesh.geometry,
+            sourceMesh.material,
+            COUNT
+        );
+
+        scene.add(instanced);
+        animate();
+    }
+);
 
 // ------------------------------------
 // FORCES
@@ -117,12 +139,10 @@ function updatePhysics() {
 
     for (let i = 0; i < COUNT; i++) {
 
-        // CENTER RETURN
         velocities[i].x -= positions[i].x * CENTER_FORCE;
         velocities[i].y -= positions[i].y * CENTER_FORCE;
         velocities[i].z -= positions[i].z * CENTER_FORCE;
 
-        // SOFT COLLISION
         for (let j = i + 1; j < COUNT; j++) {
             const diff = positions[i].clone().sub(positions[j]);
             const dist = diff.length();
@@ -152,6 +172,11 @@ function updatePhysics() {
 
         velocities[i].multiplyScalar(RETURN_DAMPING);
         positions[i].add(velocities[i]);
+
+        // ROTATION (this fixes the "2D" feeling)
+        rotations[i].x += velocities[i].y * 0.5;
+        rotations[i].y += velocities[i].x * 0.5;
+        rotations[i].z += velocities[i].z * 0.5;
     }
 }
 
@@ -165,6 +190,12 @@ function animate() {
 
     for (let i = 0; i < COUNT; i++) {
         temp.position.copy(positions[i]);
+        temp.rotation.set(
+            rotations[i].x,
+            rotations[i].y,
+            rotations[i].z
+        );
+        temp.scale.setScalar(1); // GLB scale
         temp.updateMatrix();
         instanced.setMatrixAt(i, temp.matrix);
     }
@@ -174,7 +205,6 @@ function animate() {
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
-animate();
 
 // ------------------------------------
 window.addEventListener("resize", () => {
