@@ -32,17 +32,18 @@ document.body.appendChild(renderer.domElement);
 // ------------------------------------
 // LIGHT
 // ------------------------------------
-const hemi = new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8);
-scene.add(hemi);
+scene.add(new THREE.HemisphereLight(0x3d5fff, 0x000000, 0.8));
 
 // ------------------------------------
-// BALL INSTANCING
+// BALLS
 // ------------------------------------
 const COUNT = 40;
 const positions = [];
 const velocities = [];
 
-const geometry = new THREE.SphereGeometry(2, 32, 32);
+const BALL_RADIUS = 2;
+
+const geometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
 const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.3,
@@ -54,7 +55,7 @@ scene.add(instanced);
 
 const temp = new THREE.Object3D();
 
-// RANDOM START POSITIONS
+// INITIAL STATE
 for (let i = 0; i < COUNT; i++) {
     positions[i] = new THREE.Vector3(
         (Math.random() - 0.5) * 10,
@@ -80,33 +81,35 @@ window.addEventListener("pointermove", (e) => {
 });
 
 // ------------------------------------
-// PHYSICS
+// PHYSICS TUNING
 // ------------------------------------
-const CENTER_FORCE = 0.0008;      // ⬅️ toplanma yavaş
-const BASE_MOUSE_FORCE = 0.04;   // dağılma aynı
-const INTERACTION_MULTIPLIER = 2;
-
-const DAMPING = 0.96;
+const CENTER_FORCE = 0.0008;     // toplanma yavaş
 const RETURN_DAMPING = 0.985;
 
-const REPEL_RADIUS = 4.2;
+const BASE_MOUSE_FORCE = 0.04;
+const INTERACTION_MULTIPLIER = 2;
+const MOUSE_RADIUS = 8;         // ⬅️ büyütüldü
+
+const REPEL_RADIUS = BALL_RADIUS * 2.1;
 const REPEL_STRENGTH = 0.025;
 
+// ------------------------------------
+// FORCES
+// ------------------------------------
 function applyMouseForce() {
     for (let i = 0; i < COUNT; i++) {
         const diff = positions[i].clone().sub(mouse);
         const dist = diff.length();
 
-if (dist < MOUSE_RADIUS) {
-    const push =
-        Math.pow(MOUSE_RADIUS - dist, 2) *
-        BASE_MOUSE_FORCE *
-        INTERACTION_MULTIPLIER;
+        if (dist < MOUSE_RADIUS) {
+            const push =
+                Math.pow(MOUSE_RADIUS - dist, 2) *
+                BASE_MOUSE_FORCE *
+                INTERACTION_MULTIPLIER;
 
-    diff.normalize();
-    velocities[i].add(diff.multiplyScalar(push));
-}
-
+            diff.normalize();
+            velocities[i].add(diff.multiplyScalar(push));
+        }
     }
 }
 
@@ -114,7 +117,7 @@ function updatePhysics() {
 
     for (let i = 0; i < COUNT; i++) {
 
-        // SOFT CENTER RETURN (SLOW)
+        // CENTER RETURN
         velocities[i].x -= positions[i].x * CENTER_FORCE;
         velocities[i].y -= positions[i].y * CENTER_FORCE;
         velocities[i].z -= positions[i].z * CENTER_FORCE;
@@ -133,9 +136,7 @@ function updatePhysics() {
             }
         }
 
-        // DIFFERENT DAMPING FOR RETURN
         velocities[i].multiplyScalar(RETURN_DAMPING);
-
         positions[i].add(velocities[i]);
     }
 }
@@ -171,4 +172,3 @@ window.addEventListener("resize", () => {
 
 </body>
 </html>
-
