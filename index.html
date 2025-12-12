@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Lusion GLB Physics</title>
+<title>GLB Instanced Test</title>
 <style>
 html, body {
     margin: 0;
@@ -19,11 +19,12 @@ html, body {
 
 <script>
 // ------------------------------------
-// SCENE & CAMERA
+// SCENE
 // ------------------------------------
 const scene = new THREE.Scene();
+
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 0, 24);
+camera.position.set(0, 0, 25);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -31,9 +32,13 @@ renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
 // ------------------------------------
-// LIGHT
+// LIGHT (STRONG ON PURPOSE)
 // ------------------------------------
-scene.add(new THREE.HemisphereLight(0xffffff, 0x222222, 1.2));
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+
+const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+dir.position.set(5, 10, 10);
+scene.add(dir);
 
 // ------------------------------------
 // PHYSICS DATA
@@ -46,8 +51,8 @@ const rotations = [];
 for (let i = 0; i < COUNT; i++) {
     positions[i] = new THREE.Vector3(
         (Math.random() - 0.5) * 12,
-        (Math.random() - 0.5) * 7,
-        (Math.random() - 0.5) * 7
+        (Math.random() - 0.5) * 8,
+        (Math.random() - 0.5) * 8
     );
 
     velocities[i] = new THREE.Vector3(
@@ -56,127 +61,60 @@ for (let i = 0; i < COUNT; i++) {
         (Math.random() - 0.5) * 0.04
     );
 
-    rotations[i] = new THREE.Vector3(
-        Math.random(),
-        Math.random(),
-        Math.random()
-    );
+    rotations[i] = new THREE.Vector3();
 }
 
 // ------------------------------------
-// MOUSE
-// ------------------------------------
-let mouse = new THREE.Vector3();
-window.addEventListener("pointermove", (e) => {
-    const x = (e.clientX / innerWidth) * 2 - 1;
-    const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 9, y * 6, 0);
-});
-
-// ------------------------------------
-// PHYSICS TUNING
-// ------------------------------------
-const CENTER_FORCE = 0.0007;
-const RETURN_DAMPING = 0.97;
-
-const BASE_MOUSE_FORCE = 0.045;
-const INTERACTION_MULTIPLIER = 2;
-const MOUSE_RADIUS = 9;
-
-const REPEL_RADIUS = 5.4;
-const REPEL_STRENGTH = 0.011;
-
-// ------------------------------------
-// LOAD GLB & CREATE INSTANCES
+// LOAD GLB
 // ------------------------------------
 const loader = new THREE.GLTFLoader();
-let instanced, temp = new THREE.Object3D();
+let instanced;
+const temp = new THREE.Object3D();
 
 loader.load(
     "https://raw.githubusercontent.com/archysketch/3dscene/main/christmas_ball.glb",
     (gltf) => {
 
-        let sourceMesh;
-        gltf.scene.traverse((child) => {
-            if (child.isMesh) sourceMesh = child;
+        let mesh;
+        gltf.scene.traverse((c) => {
+            if (c.isMesh) mesh = c;
         });
 
-        sourceMesh.geometry.center();
-        sourceMesh.geometry.computeVertexNormals();
+        // 🔑 CRITICAL FIXES
+        mesh.geometry.center();
+        mesh.geometry.computeVertexNormals();
+
+        // DEBUG MATERIAL (guaranteed visible)
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 0.2,
+            roughness: 0.3
+        });
 
         instanced = new THREE.InstancedMesh(
-            sourceMesh.geometry,
-            sourceMesh.material,
+            mesh.geometry,
+            material,
             COUNT
         );
 
         scene.add(instanced);
         animate();
-    }
+    },
+    undefined,
+    (err) => console.error("GLB load error", err)
 );
 
 // ------------------------------------
-// FORCES
+// SIMPLE PHYSICS
 // ------------------------------------
-function applyMouseForce() {
+function update() {
     for (let i = 0; i < COUNT; i++) {
-        const diff = positions[i].clone().sub(mouse);
-        const dist = diff.length();
-
-        if (dist < MOUSE_RADIUS) {
-            const push =
-                Math.pow(MOUSE_RADIUS - dist, 2) *
-                BASE_MOUSE_FORCE *
-                INTERACTION_MULTIPLIER;
-
-            diff.normalize();
-            velocities[i].add(diff.multiplyScalar(push));
-        }
-    }
-}
-
-function updatePhysics() {
-
-    for (let i = 0; i < COUNT; i++) {
-
-        velocities[i].x -= positions[i].x * CENTER_FORCE;
-        velocities[i].y -= positions[i].y * CENTER_FORCE;
-        velocities[i].z -= positions[i].z * CENTER_FORCE;
-
-        for (let j = i + 1; j < COUNT; j++) {
-            const diff = positions[i].clone().sub(positions[j]);
-            const dist = diff.length();
-
-            if (dist < REPEL_RADIUS && dist > 0) {
-
-                const speed =
-                    velocities[i].length() +
-                    velocities[j].length();
-
-                const speedDamp = THREE.MathUtils.clamp(
-                    1 - speed * 2,
-                    0.25,
-                    1
-                );
-
-                const push =
-                    (REPEL_RADIUS - dist) *
-                    REPEL_STRENGTH *
-                    speedDamp;
-
-                diff.normalize();
-                velocities[i].add(diff.clone().multiplyScalar(push));
-                velocities[j].add(diff.clone().multiplyScalar(-push));
-            }
-        }
-
-        velocities[i].multiplyScalar(RETURN_DAMPING);
         positions[i].add(velocities[i]);
 
-        // ROTATION (this fixes the "2D" feeling)
-        rotations[i].x += velocities[i].y * 0.5;
-        rotations[i].y += velocities[i].x * 0.5;
-        rotations[i].z += velocities[i].z * 0.5;
+        velocities[i].multiplyScalar(0.98);
+
+        rotations[i].x += velocities[i].y;
+        rotations[i].y += velocities[i].x;
     }
 }
 
@@ -185,8 +123,7 @@ function updatePhysics() {
 // ------------------------------------
 function animate() {
 
-    applyMouseForce();
-    updatePhysics();
+    update();
 
     for (let i = 0; i < COUNT; i++) {
         temp.position.copy(positions[i]);
@@ -195,7 +132,10 @@ function animate() {
             rotations[i].y,
             rotations[i].z
         );
-        temp.scale.setScalar(1); // GLB scale
+
+        // 🔥 THIS IS THE KEY LINE
+        temp.scale.setScalar(8); // <<<<<<<<<<<<<<
+
         temp.updateMatrix();
         instanced.setMatrixAt(i, temp.matrix);
     }
@@ -206,7 +146,6 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-// ------------------------------------
 window.addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
