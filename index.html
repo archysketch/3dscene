@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>GLB Physics FINAL</title>
+<title>GLB Physics Final</title>
 <style>
 html, body {
     margin: 0;
@@ -15,12 +15,12 @@ html, body {
 <body>
 
 <script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
-import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
+import * as THREE from "https://unpkg.com/three@0.152.2/build/three.module.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
 
-// ------------------------------------------------
-// SCENE
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* SCENE */
+/* -------------------------------------------------- */
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
@@ -31,18 +31,18 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ------------------------------------------------
-// LIGHT (GUARANTEED VISIBLE)
-// ------------------------------------------------
-scene.add(new THREE.AmbientLight(0xffffff, 1.8));
+/* -------------------------------------------------- */
+/* LIGHT */
+/* -------------------------------------------------- */
+scene.add(new THREE.AmbientLight(0xffffff, 1.6));
 
-const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+const dir = new THREE.DirectionalLight(0xffffff, 1.4);
 dir.position.set(5, 8, 10);
 scene.add(dir);
 
-// ------------------------------------------------
-// PHYSICS DATA
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* PHYSICS DATA */
+/* -------------------------------------------------- */
 const COUNT = 40;
 const objects = [];
 const positions = [];
@@ -65,9 +65,9 @@ for (let i = 0; i < COUNT; i++) {
     rotations[i] = new THREE.Vector3();
 }
 
-// ------------------------------------------------
-// MOUSE
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* MOUSE */
+/* -------------------------------------------------- */
 let mouse = new THREE.Vector3();
 window.addEventListener("pointermove", (e) => {
     const x = (e.clientX / innerWidth) * 2 - 1;
@@ -75,9 +75,9 @@ window.addEventListener("pointermove", (e) => {
     mouse.set(x * 9, y * 6, 0);
 });
 
-// ------------------------------------------------
-// PHYSICS TUNING
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* TUNING */
+/* -------------------------------------------------- */
 const CENTER_FORCE = 0.0007;
 const DAMPING = 0.97;
 
@@ -87,9 +87,9 @@ const MOUSE_FORCE = 0.08;
 const REPEL_RADIUS = 5;
 const REPEL_STRENGTH = 0.01;
 
-// ------------------------------------------------
-// LOAD GLB ONCE, CLONE MANY
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* LOAD GLB ONCE, CLONE */
+/* -------------------------------------------------- */
 const loader = new GLTFLoader();
 
 loader.load(
@@ -109,7 +109,7 @@ loader.load(
 
         for (let i = 0; i < COUNT; i++) {
             const clone = gltf.scene.clone(true);
-            clone.scale.setScalar(8); // 🔥 kritik
+            clone.scale.setScalar(8); // 🔥 kritik ölçek
             scene.add(clone);
             objects.push(clone);
         }
@@ -118,9 +118,9 @@ loader.load(
     }
 );
 
-// ------------------------------------------------
-// FORCES
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* PHYSICS */
+/* -------------------------------------------------- */
 function applyMouseForce() {
     for (let i = 0; i < COUNT; i++) {
         const diff = positions[i].clone().sub(mouse);
@@ -136,7 +136,6 @@ function applyMouseForce() {
 }
 
 function updatePhysics() {
-
     for (let i = 0; i < COUNT; i++) {
 
         velocities[i].sub(positions[i].clone().multiplyScalar(CENTER_FORCE));
@@ -162,9 +161,9 @@ function updatePhysics() {
     }
 }
 
-// ------------------------------------------------
-// LOOP
-// ------------------------------------------------
+/* -------------------------------------------------- */
+/* LOOP */
+/* -------------------------------------------------- */
 function animate() {
 
     applyMouseForce();
@@ -186,7 +185,7 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-// ------------------------------------------------
+/* -------------------------------------------------- */
 window.addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
