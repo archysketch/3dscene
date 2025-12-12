@@ -39,15 +39,15 @@ scene.add(hemi);
 // ------------------------------------
 // BALL INSTANCING
 // ------------------------------------
-const COUNT = 40;
+const COUNT = 20;
 const positions = [];
 const velocities = [];
 
-const geometry = new THREE.SphereGeometry(2, 32, 32);
+const geometry = new THREE.SphereGeometry(3, 32, 32);
 const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.3,
-    metalness: 0.2
+    metalness: 1.2
 });
 
 const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
@@ -74,9 +74,9 @@ for (let i = 0; i < COUNT; i++) {
 // PHYSICS LOOP
 // ------------------------------------
 function updatePhysics() {
-    const centerForce = 0.0008;  
+    const centerForce = 0.0003;  
     const damping = 0.96;       
-    const repelRadius = 4.4;
+    const repelRadius = 6.4;
     const repelStrength = 0.015;
 
     for (let i = 0; i < COUNT; i++) {
@@ -165,6 +165,7 @@ window.addEventListener("resize", ()=>{
 
 </body>
 </html>
+
 
 
 
