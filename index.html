@@ -4,11 +4,12 @@
 <meta charset="UTF-8" />
 <title>Lusion Physics Prototype</title>
 <style>
-    html, body {
-        margin: 0; padding: 0;
-        overflow: hidden;
-        background: #000;
-    }
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
+}
 </style>
 </head>
 <body>
@@ -20,9 +21,7 @@
 // SCENE & CAMERA
 // ------------------------------------
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-    55, innerWidth / innerHeight, 0.1, 100
-);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0, 0, 22);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -39,15 +38,15 @@ scene.add(hemi);
 // ------------------------------------
 // BALL INSTANCING
 // ------------------------------------
-const COUNT = 20;
+const COUNT = 40;
 const positions = [];
 const velocities = [];
 
-const geometry = new THREE.SphereGeometry(3, 32, 32);
+const geometry = new THREE.SphereGeometry(2, 32, 32);
 const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.3,
-    metalness: 1.2
+    metalness: 0.2
 });
 
 const instanced = new THREE.InstancedMesh(geometry, material, COUNT);
@@ -71,29 +70,61 @@ for (let i = 0; i < COUNT; i++) {
 }
 
 // ------------------------------------
-// PHYSICS LOOP
+// MOUSE
 // ------------------------------------
+let mouse = new THREE.Vector3();
+window.addEventListener("pointermove", (e) => {
+    const x = (e.clientX / innerWidth) * 2 - 1;
+    const y = -(e.clientY / innerHeight) * 2 + 1;
+    mouse.set(x * 8, y * 5, 0);
+});
+
+// ------------------------------------
+// PHYSICS
+// ------------------------------------
+const CENTER_FORCE = 0.0008;      // ⬅️ toplanma yavaş
+const BASE_MOUSE_FORCE = 0.04;   // dağılma aynı
+const INTERACTION_MULTIPLIER = 2;
+
+const DAMPING = 0.96;
+const RETURN_DAMPING = 0.985;
+
+const REPEL_RADIUS = 4.2;
+const REPEL_STRENGTH = 0.025;
+
+function applyMouseForce() {
+    for (let i = 0; i < COUNT; i++) {
+        const diff = positions[i].clone().sub(mouse);
+        const dist = diff.length();
+
+        if (dist < 4) {
+            const push =
+                Math.pow(4 - dist, 2) *
+                BASE_MOUSE_FORCE *
+                INTERACTION_MULTIPLIER;
+
+            diff.normalize();
+            velocities[i].add(diff.multiplyScalar(push));
+        }
+    }
+}
+
 function updatePhysics() {
-    const centerForce = 0.0003;  
-    const damping = 0.96;       
-    const repelRadius = 6.4;
-    const repelStrength = 0.015;
 
     for (let i = 0; i < COUNT; i++) {
 
-        // SOFT CENTERING
-        velocities[i].x -= positions[i].x * centerForce;
-        velocities[i].y -= positions[i].y * centerForce;
-        velocities[i].z -= positions[i].z * centerForce;
+        // SOFT CENTER RETURN (SLOW)
+        velocities[i].x -= positions[i].x * CENTER_FORCE;
+        velocities[i].y -= positions[i].y * CENTER_FORCE;
+        velocities[i].z -= positions[i].z * CENTER_FORCE;
 
-        // PAIRWISE REPEL (NO OVERLAP)
+        // REPEL
         for (let j = i + 1; j < COUNT; j++) {
-
             const diff = positions[i].clone().sub(positions[j]);
             const dist = diff.length();
 
-            if (dist < repelRadius && dist > 0) {
-                const push = (repelRadius - dist) * repelStrength;
+            if (dist < REPEL_RADIUS && dist > 0) {
+                const push = (REPEL_RADIUS - dist) * REPEL_STRENGTH;
                 diff.normalize();
 
                 velocities[i].add(diff.clone().multiplyScalar(push));
@@ -101,36 +132,10 @@ function updatePhysics() {
             }
         }
 
-        // VELOCITY DAMP
-        velocities[i].multiplyScalar(damping);
+        // DIFFERENT DAMPING FOR RETURN
+        velocities[i].multiplyScalar(RETURN_DAMPING);
 
-        // APPLY VELOCITY
         positions[i].add(velocities[i]);
-    }
-}
-
-// ------------------------------------
-// MOUSE FORCE
-// ------------------------------------
-let mouse = new THREE.Vector3();
-window.addEventListener("pointermove", (e)=>{
-    const x = (e.clientX / innerWidth) * 2 - 1;
-    const y = -(e.clientY / innerHeight) * 2 + 1;
-    mouse.set(x * 8, y * 5, 0);
-});
-
-function applyMouseForce() {
-    const force = 0.09;
-
-    for (let i = 0; i < COUNT; i++) {
-        const diff = positions[i].clone().sub(mouse);
-        const dist = diff.length();
-
-        if (dist < 4) {
-            const push = (4 - dist) * force;
-            diff.normalize();
-            velocities[i].add(diff.multiplyScalar(push));
-        }
     }
 }
 
@@ -156,7 +161,7 @@ function animate() {
 animate();
 
 // ------------------------------------
-window.addEventListener("resize", ()=>{
+window.addEventListener("resize", () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
@@ -165,8 +170,3 @@ window.addEventListener("resize", ()=>{
 
 </body>
 </html>
-
-
-
-
-
