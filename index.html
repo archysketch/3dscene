@@ -97,15 +97,16 @@ function applyMouseForce() {
         const diff = positions[i].clone().sub(mouse);
         const dist = diff.length();
 
-        if (dist < 4) {
-            const push =
-                Math.pow(4 - dist, 2) *
-                BASE_MOUSE_FORCE *
-                INTERACTION_MULTIPLIER;
+if (dist < MOUSE_RADIUS) {
+    const push =
+        Math.pow(MOUSE_RADIUS - dist, 2) *
+        BASE_MOUSE_FORCE *
+        INTERACTION_MULTIPLIER;
 
-            diff.normalize();
-            velocities[i].add(diff.multiplyScalar(push));
-        }
+    diff.normalize();
+    velocities[i].add(diff.multiplyScalar(push));
+}
+
     }
 }
 
@@ -170,3 +171,4 @@ window.addEventListener("resize", () => {
 
 </body>
 </html>
+
